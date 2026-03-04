@@ -1,0 +1,345 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acp.agentralabs.tech/schemas/v0.1/execution-receipt.json",
+  "title": "ExecutionReceipt",
+  "description": "ACP v0.1 — The tamper-proof, cryptographically signed, permanently replayable record of every agent commerce event. Attached to both agents' identity histories forever. The audit primitive of ACP.",
+  "type": "object",
+  "required": [
+    "acp_version",
+    "receipt_id",
+    "receipt_type",
+    "settlement_id",
+    "negotiation_id",
+    "payer_agent_id",
+    "payee_agent_id",
+    "event_chain",
+    "final_state",
+    "amounts_settled",
+    "created_at",
+    "receipt_signature"
+  ],
+  "properties": {
+    "acp_version": {
+      "type": "string",
+      "const": "0.1"
+    },
+    "receipt_id": {
+      "type": "string",
+      "pattern": "^rcpt_[a-zA-Z0-9]{32}$",
+      "description": "Globally unique receipt identifier. Immutable. Permanently referenceable."
+    },
+    "receipt_type": {
+      "type": "string",
+      "enum": [
+        "FULL_RELEASE",
+        "PARTIAL_RELEASE",
+        "FULL_ROLLBACK",
+        "DISPUTE_RESOLVED",
+        "SPLIT_CASCADE"
+      ],
+      "description": "Classification of this receipt. Determines which fields are populated."
+    },
+    "settlement_id": {
+      "type": "string",
+      "description": "The SettlementIntent this receipt closes."
+    },
+    "negotiation_id": {
+      "type": "string",
+      "description": "The NegotiationContract that initiated this commerce event."
+    },
+    "payer_agent_id": {
+      "type": "string",
+      "description": "Agent that locked funds into escrow."
+    },
+    "payee_agent_id": {
+      "type": "string",
+      "description": "Primary agent that executed the task."
+    },
+    "event_chain": {
+      "type": "array",
+      "description": "Complete chronological record of every event in this commerce interaction. Tamper-evident. Append-only.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["event_id", "event_type", "timestamp", "agent_id", "signature"],
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "description": "Unique event identifier within this chain."
+          },
+          "event_type": {
+            "type": "string",
+            "enum": [
+              "NEGOTIATION_INITIATED",
+              "OFFER_MADE",
+              "COUNTER_MADE",
+              "CONTRACT_ACCEPTED",
+              "FUNDS_LOCKED",
+              "EXECUTION_STARTED",
+              "EXECUTION_COMPLETED",
+              "CONDITION_VERIFIED",
+              "CONDITION_FAILED",
+              "FUNDS_RELEASED",
+              "FUNDS_ROLLED_BACK",
+              "SPLIT_DISTRIBUTED",
+              "DISPUTE_RAISED",
+              "DISPUTE_RESOLVED",
+              "RECEIPT_ISSUED"
+            ]
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "agent_id": {
+            "type": "string",
+            "description": "Agent that triggered or is associated with this event."
+          },
+          "event_data": {
+            "type": "object",
+            "description": "Event-specific data payload."
+          },
+          "previous_event_hash": {
+            "type": "string",
+            "description": "SHA-256 hash of the previous event in the chain. Creates tamper-evident linkage."
+          },
+          "signature": {
+            "type": "string",
+            "description": "Ed25519 signature by the associated agent over this event entry."
+          }
+        }
+      }
+    },
+    "final_state": {
+      "type": "object",
+      "description": "The resolved outcome of this commerce interaction.",
+      "required": ["state", "resolved_at", "resolution_method"],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": ["RELEASED", "PARTIAL_RELEASED", "ROLLED_BACK", "DISPUTE_RESOLVED"]
+        },
+        "resolved_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "resolution_method": {
+          "type": "string",
+          "enum": [
+            "automatic_condition_met",
+            "automatic_condition_failed",
+            "automatic_timeout",
+            "automatic_arbitration",
+            "human_approved",
+            "human_rejected"
+          ],
+          "description": "How this settlement resolved. Tracks automation rate — a key validation metric."
+        },
+        "condition_met": {
+          "type": "boolean"
+        },
+        "completion_percentage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "For partial releases. Actual completion percentage verified."
+        }
+      }
+    },
+    "amounts_settled": {
+      "type": "object",
+      "description": "Complete financial record of this settlement.",
+      "required": ["total_locked", "total_released", "total_rolled_back", "settlement_unit"],
+      "properties": {
+        "total_locked": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Total amount that was locked in escrow."
+        },
+        "total_released": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Total amount released to recipients."
+        },
+        "total_rolled_back": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Total amount returned to payer."
+        },
+        "settlement_unit": {
+          "type": "string"
+        },
+        "split_distributions": {
+          "type": "array",
+          "description": "Itemized record of split cascade distributions. Every recipient, every amount.",
+          "items": {
+            "type": "object",
+            "required": ["recipient_agent_id", "amount", "role"],
+            "properties": {
+              "recipient_agent_id": { "type": "string" },
+              "amount": { "type": "number", "minimum": 0 },
+              "role": {
+                "type": "string",
+                "enum": ["orchestrator", "subagent", "tool", "platform", "custom"]
+              },
+              "distribution_timestamp": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "distribution_signature": {
+                "type": "string",
+                "description": "Ed25519 signature confirming this distribution."
+              }
+            }
+          }
+        }
+      }
+    },
+    "performance_record": {
+      "type": "object",
+      "description": "Execution performance data. Attached to payee's reputation history.",
+      "properties": {
+        "actual_latency_ms": {
+          "type": "integer",
+          "description": "Measured latency vs declared SLA."
+        },
+        "declared_latency_ms": {
+          "type": "integer",
+          "description": "SLA-declared maximum latency."
+        },
+        "latency_sla_met": { "type": "boolean" },
+        "quality_score_achieved": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "quality_threshold_declared": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "quality_sla_met": { "type": "boolean" },
+        "retry_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "reputation_impact": {
+      "type": "object",
+      "description": "How this event affects each agent's reputation score. Append-only. Never deleted.",
+      "properties": {
+        "payee_reputation_delta": {
+          "type": "number",
+          "description": "Change to payee agent reputation score from this event."
+        },
+        "payer_reputation_delta": {
+          "type": "number",
+          "description": "Change to payer agent reputation score from this event."
+        },
+        "reputation_factors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "factor": { "type": "string" },
+              "weight": { "type": "number" },
+              "value": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "dispute_record": {
+      "type": "object",
+      "description": "Present only when receipt_type is DISPUTE_RESOLVED.",
+      "properties": {
+        "dispute_reason": {
+          "type": "string",
+          "description": "Reason dispute was raised."
+        },
+        "raised_by": {
+          "type": "string",
+          "description": "agent_id that raised the dispute."
+        },
+        "raised_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "arbitration_steps_taken": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "arbitration_outcome": {
+          "type": "string",
+          "enum": ["favor_payer", "favor_payee", "pro_rata_split"]
+        },
+        "resolved_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of receipt creation. Immutable."
+    },
+    "receipt_hash": {
+      "type": "string",
+      "description": "SHA-256 hash of the canonical JSON of this receipt (excluding receipt_signature). Enables tamper detection."
+    },
+    "receipt_signature": {
+      "type": "string",
+      "description": "Ed25519 signature by ACP Rail over the receipt_hash. Proof that this receipt was issued by an ACP-compliant settlement engine."
+    }
+  },
+  "examples": [
+    {
+      "acp_version": "0.1",
+      "receipt_id": "rcpt_Yn9MrStUvWxYzAaBbCcDdEeFfGgHhIiJj",
+      "receipt_type": "SPLIT_CASCADE",
+      "settlement_id": "stl_Zn8LqRsTuVwXyAzBcDeFgHiJkLmNoPqR",
+      "negotiation_id": "neg_Xm7KpQrTvWnJhLsYdBfCeGaUiOzKw9P",
+      "payer_agent_id": "acp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6",
+      "payee_agent_id": "acp_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
+      "final_state": {
+        "state": "RELEASED",
+        "resolved_at": "2026-03-03T10:01:12Z",
+        "resolution_method": "automatic_condition_met",
+        "condition_met": true,
+        "completion_percentage": 100
+      },
+      "amounts_settled": {
+        "total_locked": 0.07,
+        "total_released": 0.07,
+        "total_rolled_back": 0.00,
+        "settlement_unit": "USD",
+        "split_distributions": [
+          {
+            "recipient_agent_id": "acp_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
+            "amount": 0.0595,
+            "role": "subagent",
+            "distribution_timestamp": "2026-03-03T10:01:13Z"
+          },
+          {
+            "recipient_agent_id": "acp_PLATFORM000000000000000000000000",
+            "amount": 0.0105,
+            "role": "platform",
+            "distribution_timestamp": "2026-03-03T10:01:13Z"
+          }
+        ]
+      },
+      "performance_record": {
+        "actual_latency_ms": 847,
+        "declared_latency_ms": 1500,
+        "latency_sla_met": true,
+        "quality_score_achieved": 0.94,
+        "quality_threshold_declared": 0.90,
+        "quality_sla_met": true,
+        "retry_count": 0
+      },
+      "created_at": "2026-03-03T10:01:14Z"
+    }
+  ]
+}

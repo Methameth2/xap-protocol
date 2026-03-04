@@ -1,0 +1,315 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acp.agentralabs.tech/schemas/v0.1/agent-identity.json",
+  "title": "AgentIdentity",
+  "description": "ACP v0.1 — The permanent economic identity and capability passport for an autonomous agent. Cryptographically anchored. Append-only reputation.",
+  "type": "object",
+  "required": [
+    "acp_version",
+    "agent_id",
+    "public_key",
+    "key_algorithm",
+    "registered_at",
+    "capabilities",
+    "pricing",
+    "sla",
+    "reputation"
+  ],
+  "properties": {
+    "acp_version": {
+      "type": "string",
+      "const": "0.1",
+      "description": "ACP protocol version this identity was registered under."
+    },
+    "agent_id": {
+      "type": "string",
+      "pattern": "^acp_[a-zA-Z0-9]{32}$",
+      "description": "Globally unique agent identifier. Assigned at registration. Immutable."
+    },
+    "public_key": {
+      "type": "string",
+      "description": "Ed25519 public key (base64url encoded). Used to verify all signed receipts and trust grants from this agent."
+    },
+    "key_algorithm": {
+      "type": "string",
+      "enum": ["Ed25519"],
+      "description": "Signing algorithm. ACP v0.1 requires Ed25519."
+    },
+    "registered_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp of first registration. Immutable."
+    },
+    "display_name": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "Human-readable agent name. Optional. Does not affect identity."
+    },
+    "capabilities": {
+      "type": "array",
+      "description": "Declared capabilities. Machine-readable. An agent reading this should be able to determine hirability without human involvement.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["capability_id", "name", "input_schema", "output_schema"],
+        "properties": {
+          "capability_id": {
+            "type": "string",
+            "description": "Unique identifier for this capability within the agent."
+          },
+          "name": {
+            "type": "string",
+            "description": "Short capability name. Machine and human readable."
+          },
+          "description": {
+            "type": "string",
+            "description": "Natural language description of what this capability does."
+          },
+          "input_schema": {
+            "type": "object",
+            "description": "JSON Schema defining valid inputs for this capability."
+          },
+          "output_schema": {
+            "type": "object",
+            "description": "JSON Schema defining the structure of outputs from this capability."
+          },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Categorical tags for capability discovery. e.g. ['data-enrichment', 'nlp', 'inference']"
+          }
+        }
+      }
+    },
+    "pricing": {
+      "type": "object",
+      "description": "Pricing structure for this agent's capabilities.",
+      "required": ["model"],
+      "properties": {
+        "model": {
+          "type": "string",
+          "enum": ["fixed", "dynamic", "auction", "outcome_based"],
+          "description": "Pricing model. Agents have different economic personalities."
+        },
+        "base_rate": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Base rate per execution in settlement units."
+        },
+        "settlement_unit": {
+          "type": "string",
+          "description": "Unit of account for settlement. e.g. 'USD', 'USDC', 'ACP_CREDIT'"
+        },
+        "conditional_rates": {
+          "type": "array",
+          "description": "Conditional pricing tiers. e.g. Pay X if completed in 2s, Y if 5s, Z if 10s.",
+          "items": {
+            "type": "object",
+            "required": ["condition", "rate"],
+            "properties": {
+              "condition": {
+                "type": "string",
+                "description": "Natural language condition description."
+              },
+              "condition_type": {
+                "type": "string",
+                "enum": ["latency", "quality", "volume", "time_of_day", "custom"]
+              },
+              "condition_threshold": {
+                "type": "number",
+                "description": "Numeric threshold value for the condition."
+              },
+              "condition_operator": {
+                "type": "string",
+                "enum": ["lt", "lte", "gt", "gte", "eq"]
+              },
+              "rate": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Rate applied when condition is met."
+              }
+            }
+          }
+        }
+      }
+    },
+    "sla": {
+      "type": "object",
+      "description": "Service level agreement declarations. Sets expectations before negotiation begins.",
+      "properties": {
+        "max_latency_ms": {
+          "type": "integer",
+          "description": "Maximum response latency in milliseconds."
+        },
+        "uptime_guarantee_pct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Declared uptime percentage."
+        },
+        "quality_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Minimum quality score (0-1) for output acceptance."
+        },
+        "retry_policy": {
+          "type": "object",
+          "properties": {
+            "max_retries": { "type": "integer", "minimum": 0 },
+            "backoff_ms": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "reputation": {
+      "type": "object",
+      "description": "Append-only execution history and reputation score. Never deleted. Every outcome permanently attached.",
+      "properties": {
+        "total_executions": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total number of executions completed under ACP."
+        },
+        "successful_settlements": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of settlements that released funds successfully."
+        },
+        "disputed_settlements": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of settlements that entered dispute."
+        },
+        "auto_resolved_disputes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Disputes resolved by deterministic arbitration without human involvement."
+        },
+        "reputation_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Computed reputation score (0-1). Derived from execution history. Read-only."
+        },
+        "first_execution_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of first recorded execution."
+        },
+        "last_execution_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of most recent execution."
+        },
+        "capability_hash": {
+          "type": "string",
+          "description": "SHA-256 hash of the capabilities array at last update. Detects capability drift."
+        }
+      }
+    },
+    "risk_profile": {
+      "type": "object",
+      "description": "Risk declarations for downstream governance and spend control.",
+      "properties": {
+        "max_transaction_value": {
+          "type": "number",
+          "description": "Maximum value this agent will accept in a single settlement."
+        },
+        "accepted_counterparty_min_reputation": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Minimum reputation score this agent requires from counterparties."
+        },
+        "requires_human_approval_above": {
+          "type": "number",
+          "description": "Transaction value threshold above which human approval is required."
+        }
+      }
+    },
+    "identity_signature": {
+      "type": "string",
+      "description": "Ed25519 signature over the canonical JSON of this identity object (excluding this field). Signed by the agent's private key at registration."
+    }
+  },
+  "examples": [
+    {
+      "acp_version": "0.1",
+      "agent_id": "acp_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
+      "public_key": "MCowBQYDK2VwAyEA...",
+      "key_algorithm": "Ed25519",
+      "registered_at": "2026-03-03T00:00:00Z",
+      "display_name": "DataEnrichmentAgent-v2",
+      "capabilities": [
+        {
+          "capability_id": "enrich_company_profile",
+          "name": "Company Profile Enrichment",
+          "description": "Enriches a company name or domain with structured firmographic data.",
+          "input_schema": {
+            "type": "object",
+            "required": ["company_name"],
+            "properties": {
+              "company_name": { "type": "string" },
+              "domain": { "type": "string" }
+            }
+          },
+          "output_schema": {
+            "type": "object",
+            "properties": {
+              "company_name": { "type": "string" },
+              "industry": { "type": "string" },
+              "employee_count": { "type": "integer" },
+              "founded_year": { "type": "integer" },
+              "confidence_score": { "type": "number" }
+            }
+          },
+          "tags": ["data-enrichment", "firmographic", "b2b"]
+        }
+      ],
+      "pricing": {
+        "model": "outcome_based",
+        "base_rate": 0.05,
+        "settlement_unit": "USD",
+        "conditional_rates": [
+          {
+            "condition": "Confidence score above 0.95",
+            "condition_type": "quality",
+            "condition_threshold": 0.95,
+            "condition_operator": "gte",
+            "rate": 0.08
+          },
+          {
+            "condition": "Response within 500ms",
+            "condition_type": "latency",
+            "condition_threshold": 500,
+            "condition_operator": "lt",
+            "rate": 0.06
+          }
+        ]
+      },
+      "sla": {
+        "max_latency_ms": 2000,
+        "uptime_guarantee_pct": 99.5,
+        "quality_threshold": 0.85,
+        "retry_policy": {
+          "max_retries": 3,
+          "backoff_ms": 200
+        }
+      },
+      "reputation": {
+        "total_executions": 0,
+        "successful_settlements": 0,
+        "disputed_settlements": 0,
+        "auto_resolved_disputes": 0,
+        "reputation_score": 0.0,
+        "capability_hash": "sha256:e3b0c44298fc1c149afb..."
+      },
+      "risk_profile": {
+        "max_transaction_value": 100.00,
+        "accepted_counterparty_min_reputation": 0.3,
+        "requires_human_approval_above": 50.00
+      }
+    }
+  ]
+}

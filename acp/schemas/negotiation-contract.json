@@ -1,0 +1,299 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acp.agentralabs.tech/schemas/v0.1/negotiation-contract.json",
+  "title": "NegotiationContract",
+  "description": "ACP v0.1 — The terms of a proposed agent-to-agent exchange. Time-bound. Signed by both parties before execution begins. Permanently logged to both agents' identity histories.",
+  "type": "object",
+  "required": [
+    "acp_version",
+    "negotiation_id",
+    "state",
+    "initiator_agent_id",
+    "counterparty_agent_id",
+    "capability_id",
+    "offer",
+    "sla_declaration",
+    "created_at",
+    "expires_at"
+  ],
+  "properties": {
+    "acp_version": {
+      "type": "string",
+      "const": "0.1"
+    },
+    "negotiation_id": {
+      "type": "string",
+      "pattern": "^neg_[a-zA-Z0-9]{32}$",
+      "description": "Globally unique negotiation identifier. Immutable once created."
+    },
+    "state": {
+      "type": "string",
+      "enum": ["OFFER", "COUNTER", "ACCEPT", "REJECT"],
+      "description": "Current negotiation state. ACP v0.1 uses exactly four states. Simplicity is a design requirement."
+    },
+    "initiator_agent_id": {
+      "type": "string",
+      "description": "ACP agent_id of the agent initiating the negotiation."
+    },
+    "counterparty_agent_id": {
+      "type": "string",
+      "description": "ACP agent_id of the agent receiving the negotiation."
+    },
+    "capability_id": {
+      "type": "string",
+      "description": "The specific capability being negotiated for. Must match a capability_id in the counterparty's AgentIdentity."
+    },
+    "offer": {
+      "type": "object",
+      "description": "The current offer on the table. Replaced on each COUNTER state.",
+      "required": ["offered_rate", "settlement_unit", "payment_condition"],
+      "properties": {
+        "offered_rate": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Proposed rate for this execution in settlement units."
+        },
+        "settlement_unit": {
+          "type": "string",
+          "description": "Unit of account. Must match or be convertible to counterparty's declared settlement_unit."
+        },
+        "payment_condition": {
+          "type": "object",
+          "description": "The condition under which funds are released. This feeds directly into the SettlementIntent.",
+          "required": ["condition_type", "description"],
+          "properties": {
+            "condition_type": {
+              "type": "string",
+              "enum": ["deterministic", "probabilistic", "human_verified"],
+              "description": "How success will be verified at settlement time. Declared upfront. No ambiguity later."
+            },
+            "description": {
+              "type": "string",
+              "description": "Plain language description of the success condition."
+            },
+            "deterministic_check": {
+              "type": "object",
+              "description": "For condition_type: deterministic. Machine-verifiable check.",
+              "properties": {
+                "check_type": {
+                  "type": "string",
+                  "enum": ["http_status", "schema_valid", "value_match", "custom"]
+                },
+                "expected_value": {},
+                "check_path": {
+                  "type": "string",
+                  "description": "JSONPath expression to the value being checked in the execution output."
+                }
+              }
+            },
+            "probabilistic_check": {
+              "type": "object",
+              "description": "For condition_type: probabilistic. Score-based verification.",
+              "properties": {
+                "score_field": {
+                  "type": "string",
+                  "description": "Field in execution output containing the quality score."
+                },
+                "minimum_score": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Minimum score required for funds to release."
+                }
+              }
+            },
+            "human_verified_check": {
+              "type": "object",
+              "description": "For condition_type: human_verified. Approval gate.",
+              "properties": {
+                "approver_agent_id": {
+                  "type": "string",
+                  "description": "Agent or human identity responsible for verification."
+                },
+                "approval_timeout_ms": {
+                  "type": "integer",
+                  "description": "Time allowed for approval before auto-resolution triggers."
+                },
+                "timeout_resolution": {
+                  "type": "string",
+                  "enum": ["release", "rollback"],
+                  "description": "What happens if approval times out."
+                }
+              }
+            }
+          }
+        },
+        "volume_discount": {
+          "type": "object",
+          "description": "Optional volume-linked pricing adjustment.",
+          "properties": {
+            "threshold_executions": {
+              "type": "integer",
+              "description": "Number of executions above which discount applies."
+            },
+            "discounted_rate": {
+              "type": "number",
+              "description": "Rate applied once threshold is exceeded."
+            }
+          }
+        }
+      }
+    },
+    "sla_declaration": {
+      "type": "object",
+      "description": "What both parties declare success looks like. Agreed before execution. No ambiguity at settlement.",
+      "required": ["max_latency_ms", "quality_threshold"],
+      "properties": {
+        "max_latency_ms": {
+          "type": "integer",
+          "description": "Maximum acceptable latency for this execution."
+        },
+        "quality_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Minimum quality score for acceptance."
+        },
+        "retry_allowed": {
+          "type": "boolean",
+          "description": "Whether the executing agent may retry on failure before settlement resolves."
+        },
+        "max_retries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "partial_completion_policy": {
+          "type": "string",
+          "enum": ["pro_rata", "full_release", "full_rollback"],
+          "description": "What happens if execution completes partially."
+        }
+      }
+    },
+    "dispute_resolution": {
+      "type": "object",
+      "description": "Deterministic arbitration rules. Defined upfront. No support tickets. No humans in the loop unless declared.",
+      "properties": {
+        "arbitration_mode": {
+          "type": "string",
+          "enum": ["automatic", "acp_arbitrator", "human_arbitrator"],
+          "description": "How disputes are resolved if condition verification is ambiguous."
+        },
+        "resolution_sequence": {
+          "type": "array",
+          "description": "Ordered list of resolution steps tried in sequence.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "step": { "type": "string" },
+              "timeout_ms": { "type": "integer" },
+              "outcome_on_timeout": {
+                "type": "string",
+                "enum": ["release", "rollback", "escalate"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "negotiation_history": {
+      "type": "array",
+      "description": "Full history of offers and counters. Append-only. Every state transition recorded.",
+      "items": {
+        "type": "object",
+        "required": ["state", "proposed_by", "timestamp", "signature"],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": ["OFFER", "COUNTER", "ACCEPT", "REJECT"]
+          },
+          "proposed_by": {
+            "type": "string",
+            "description": "agent_id of the party making this proposal."
+          },
+          "offered_rate": { "type": "number" },
+          "note": {
+            "type": "string",
+            "description": "Optional machine-readable context for this state change."
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "signature": {
+            "type": "string",
+            "description": "Ed25519 signature by the proposing agent over this history entry."
+          }
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of negotiation initiation."
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Hard expiry of this negotiation. Every offer is time-bound. No open-ended negotiations."
+    },
+    "accepted_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of ACCEPT state. Present only when state is ACCEPT."
+    },
+    "settlement_intent_id": {
+      "type": "string",
+      "description": "ID of the SettlementIntent created on ACCEPT. Links negotiation to settlement."
+    },
+    "final_signature_initiator": {
+      "type": "string",
+      "description": "Ed25519 signature by initiator over the final accepted contract. Required before SettlementIntent is created."
+    },
+    "final_signature_counterparty": {
+      "type": "string",
+      "description": "Ed25519 signature by counterparty over the final accepted contract. Required before SettlementIntent is created."
+    }
+  },
+  "examples": [
+    {
+      "acp_version": "0.1",
+      "negotiation_id": "neg_Xm7KpQrTvWnJhLsYdBfCeGaUiOzKw9P",
+      "state": "ACCEPT",
+      "initiator_agent_id": "acp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6",
+      "counterparty_agent_id": "acp_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
+      "capability_id": "enrich_company_profile",
+      "offer": {
+        "offered_rate": 0.07,
+        "settlement_unit": "USD",
+        "payment_condition": {
+          "condition_type": "probabilistic",
+          "description": "Release payment when confidence_score in output is >= 0.90",
+          "probabilistic_check": {
+            "score_field": "confidence_score",
+            "minimum_score": 0.90
+          }
+        }
+      },
+      "sla_declaration": {
+        "max_latency_ms": 1500,
+        "quality_threshold": 0.90,
+        "retry_allowed": true,
+        "max_retries": 2,
+        "partial_completion_policy": "full_rollback"
+      },
+      "dispute_resolution": {
+        "arbitration_mode": "automatic",
+        "resolution_sequence": [
+          {
+            "step": "re_verify_condition",
+            "timeout_ms": 5000,
+            "outcome_on_timeout": "rollback"
+          }
+        ]
+      },
+      "created_at": "2026-03-03T10:00:00Z",
+      "expires_at": "2026-03-03T10:05:00Z",
+      "accepted_at": "2026-03-03T10:00:47Z"
+    }
+  ]
+}

@@ -1,0 +1,312 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acp.agentralabs.tech/schemas/v0.1/settlement-intent.json",
+  "title": "SettlementIntent",
+  "description": "ACP v0.1 — The escrow instruction. Funds locked. Condition declared. Verification method specified. Release or rollback logic defined upfront. No ambiguity at settlement time. The core primitive of ACP.",
+  "type": "object",
+  "required": [
+    "acp_version",
+    "settlement_id",
+    "state",
+    "negotiation_id",
+    "payer_agent_id",
+    "payee_agent_id",
+    "locked_amount",
+    "settlement_unit",
+    "condition",
+    "split_rules",
+    "failure_handling",
+    "created_at",
+    "execution_deadline"
+  ],
+  "properties": {
+    "acp_version": {
+      "type": "string",
+      "const": "0.1"
+    },
+    "settlement_id": {
+      "type": "string",
+      "pattern": "^stl_[a-zA-Z0-9]{32}$",
+      "description": "Globally unique settlement identifier. Used for idempotent calls. Safe to retry."
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "LOCKED",
+        "EXECUTING",
+        "VERIFYING",
+        "RELEASED",
+        "PARTIAL_RELEASED",
+        "ROLLED_BACK",
+        "DISPUTED",
+        "EXPIRED"
+      ],
+      "description": "Current settlement state. Every state has a defined transition. No money ever in limbo."
+    },
+    "negotiation_id": {
+      "type": "string",
+      "description": "The NegotiationContract that created this SettlementIntent. Provides full audit chain."
+    },
+    "payer_agent_id": {
+      "type": "string",
+      "description": "Agent locking funds into escrow."
+    },
+    "payee_agent_id": {
+      "type": "string",
+      "description": "Agent that will receive funds on successful condition verification."
+    },
+    "locked_amount": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Total amount locked in escrow. Cannot be accessed by either party until settlement resolves."
+    },
+    "settlement_unit": {
+      "type": "string",
+      "description": "Unit of account for this settlement. e.g. 'USD', 'USDC', 'ACP_CREDIT'"
+    },
+    "condition": {
+      "type": "object",
+      "description": "The condition that must be satisfied for funds to release. Copied from NegotiationContract at intent creation. Immutable.",
+      "required": ["condition_type", "description"],
+      "properties": {
+        "condition_type": {
+          "type": "string",
+          "enum": ["deterministic", "probabilistic", "human_verified"]
+        },
+        "description": {
+          "type": "string"
+        },
+        "deterministic_check": {
+          "type": "object",
+          "properties": {
+            "check_type": {
+              "type": "string",
+              "enum": ["http_status", "schema_valid", "value_match", "custom"]
+            },
+            "expected_value": {},
+            "check_path": { "type": "string" }
+          }
+        },
+        "probabilistic_check": {
+          "type": "object",
+          "properties": {
+            "score_field": { "type": "string" },
+            "minimum_score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        "human_verified_check": {
+          "type": "object",
+          "properties": {
+            "approver_agent_id": { "type": "string" },
+            "approval_timeout_ms": { "type": "integer" },
+            "timeout_resolution": {
+              "type": "string",
+              "enum": ["release", "rollback"]
+            }
+          }
+        }
+      }
+    },
+    "split_rules": {
+      "type": "array",
+      "description": "Revenue split across multi-agent workflows. Orchestrator → subagents → tools. Every layer gets its declared share automatically. Think royalty distribution, not payments.",
+      "items": {
+        "type": "object",
+        "required": ["recipient_agent_id", "share_type"],
+        "properties": {
+          "recipient_agent_id": {
+            "type": "string",
+            "description": "Agent receiving this split."
+          },
+          "share_type": {
+            "type": "string",
+            "enum": ["percentage", "fixed"],
+            "description": "Whether this recipient gets a percentage of total or a fixed amount."
+          },
+          "percentage": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "For share_type: percentage. All percentages across split_rules must sum to 100."
+          },
+          "fixed_amount": {
+            "type": "number",
+            "minimum": 0,
+            "description": "For share_type: fixed. Deducted from locked_amount before percentage splits."
+          },
+          "role": {
+            "type": "string",
+            "enum": ["orchestrator", "subagent", "tool", "platform", "custom"],
+            "description": "Role of this recipient in the execution chain."
+          },
+          "partial_completion_eligible": {
+            "type": "boolean",
+            "description": "Whether this recipient receives pro-rata payment on partial completion."
+          }
+        }
+      }
+    },
+    "execution_result": {
+      "type": "object",
+      "description": "Populated by the executing agent upon task completion. Used for condition verification.",
+      "properties": {
+        "submitted_by": {
+          "type": "string",
+          "description": "agent_id of the agent submitting this result."
+        },
+        "submitted_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "output": {
+          "type": "object",
+          "description": "Raw execution output. Condition verification runs against this."
+        },
+        "quality_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Self-reported quality score. Used when condition_type is probabilistic."
+        },
+        "latency_ms": {
+          "type": "integer",
+          "description": "Actual execution latency in milliseconds."
+        },
+        "completion_percentage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "For partial completions. Drives pro-rata calculation."
+        },
+        "execution_signature": {
+          "type": "string",
+          "description": "Ed25519 signature by executing agent over this result object."
+        }
+      }
+    },
+    "verification_result": {
+      "type": "object",
+      "description": "Populated by ACP condition verification engine after execution_result is submitted.",
+      "properties": {
+        "verified_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "condition_met": {
+          "type": "boolean",
+          "description": "Whether the declared condition was satisfied."
+        },
+        "verification_method": {
+          "type": "string",
+          "enum": ["deterministic", "probabilistic", "human_verified", "arbitration"]
+        },
+        "verification_detail": {
+          "type": "string",
+          "description": "Human and machine readable explanation of the verification outcome."
+        },
+        "resulting_state": {
+          "type": "string",
+          "enum": ["RELEASED", "PARTIAL_RELEASED", "ROLLED_BACK", "DISPUTED"]
+        }
+      }
+    },
+    "failure_handling": {
+      "type": "object",
+      "description": "Pre-declared outcomes for every failure mode. Agents cannot have money in limbo.",
+      "required": ["on_full_failure", "on_timeout"],
+      "properties": {
+        "on_full_failure": {
+          "type": "string",
+          "enum": ["full_rollback", "partial_release", "dispute"],
+          "description": "What happens when execution fails completely."
+        },
+        "on_partial_completion": {
+          "type": "string",
+          "enum": ["pro_rata_release", "full_rollback", "full_release", "dispute"],
+          "description": "What happens when execution partially completes."
+        },
+        "on_timeout": {
+          "type": "string",
+          "enum": ["full_rollback", "release", "dispute"],
+          "description": "What happens when execution_deadline passes with no result submitted."
+        },
+        "on_verification_ambiguity": {
+          "type": "string",
+          "enum": ["automatic_arbitration", "human_arbitration", "rollback"],
+          "description": "What happens when condition verification cannot produce a clear result."
+        }
+      }
+    },
+    "idempotency_key": {
+      "type": "string",
+      "description": "Client-provided key for idempotent settlement calls. Agents retry safely. System handles duplicates gracefully without double-charging."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "execution_deadline": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Hard deadline for execution result submission. Triggers failure_handling.on_timeout if missed."
+    },
+    "settled_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of final state resolution. Present when state is terminal."
+    },
+    "execution_receipt_id": {
+      "type": "string",
+      "description": "ID of the ExecutionReceipt created on settlement. Links to permanent audit trail."
+    }
+  },
+  "examples": [
+    {
+      "acp_version": "0.1",
+      "settlement_id": "stl_Zn8LqRsTuVwXyAzBcDeFgHiJkLmNoPqR",
+      "state": "LOCKED",
+      "negotiation_id": "neg_Xm7KpQrTvWnJhLsYdBfCeGaUiOzKw9P",
+      "payer_agent_id": "acp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6",
+      "payee_agent_id": "acp_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
+      "locked_amount": 0.07,
+      "settlement_unit": "USD",
+      "condition": {
+        "condition_type": "probabilistic",
+        "description": "Release payment when confidence_score in output is >= 0.90",
+        "probabilistic_check": {
+          "score_field": "confidence_score",
+          "minimum_score": 0.90
+        }
+      },
+      "split_rules": [
+        {
+          "recipient_agent_id": "acp_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
+          "share_type": "percentage",
+          "percentage": 85,
+          "role": "subagent",
+          "partial_completion_eligible": true
+        },
+        {
+          "recipient_agent_id": "acp_PLATFORM000000000000000000000000",
+          "share_type": "percentage",
+          "percentage": 15,
+          "role": "platform",
+          "partial_completion_eligible": false
+        }
+      ],
+      "failure_handling": {
+        "on_full_failure": "full_rollback",
+        "on_partial_completion": "pro_rata_release",
+        "on_timeout": "full_rollback",
+        "on_verification_ambiguity": "automatic_arbitration"
+      },
+      "idempotency_key": "client_txn_20260303_001",
+      "created_at": "2026-03-03T10:00:48Z",
+      "execution_deadline": "2026-03-03T10:02:00Z"
+    }
+  ]
+}
