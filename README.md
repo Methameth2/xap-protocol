@@ -2,71 +2,67 @@
 
 **The open economic protocol for autonomous agents.**
 
-[![Status: Protocol Draft v0.1](https://img.shields.io/badge/Status-Protocol%20Draft%20v0.1-yellow.svg)](#current-stage)
-[![Stage: Specification & Validation](https://img.shields.io/badge/Stage-Specification%20%26%20Validation-orange.svg)](#current-stage)
 [![License: MIT](https://img.shields.io/badge/License-MIT-white.svg)](https://opensource.org/licenses/MIT)
+[![Status: Draft v0.1](https://img.shields.io/badge/Status-Draft%20v0.1-yellow.svg)](#versioning)
 [![Maintained by: Agentra Labs](https://img.shields.io/badge/Maintained%20by-Agentra%20Labs-blue.svg)](https://www.agentralabs.tech)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2.svg)](https://discord.gg/agentralabs)
-
-> **Current stage:** Protocol specification and public validation.
-> Schemas are published. Reference implementation is in development.
-> See [`docs/STAGE.md`](docs/STAGE.md) for exactly what exists today and what does not.
 
 ---
 
 ## What Is ACP?
 
-ACP (Agent Commerce Protocol) is an open standard that defines how autonomous AI agents identify themselves, negotiate terms, settle value conditionally, and prove what happened — without human involvement in the loop.
+ACP (Agent Commerce Protocol) is an open standard that defines how autonomous AI agents identify themselves, negotiate terms, settle value, and prove what happened — without human involvement.
 
-Agents today can think, reason, and execute. What they cannot do is transact with each other in a trusted, auditable, deterministic way. Every system that tries solves it differently. Nothing interoperates. Nothing is provable.
+Today, agents can think. They can reason. They can execute tasks. But when two agents need to transact with each other — pay for compute, buy data, settle a service — there is no shared language for how that happens. Every system invents its own format. Nothing interoperates. Nothing is auditable.
 
-ACP defines the primitives that make agent-to-agent commerce possible at scale:
+ACP fixes that.
+
+It defines five primitive objects that every agent commerce interaction maps to:
 
 ```
 AgentIdentity        →  who the agent is and what it can do
 NegotiationContract  →  what two agents agreed to
 SettlementIntent     →  what value is locked and under what condition
 ExecutionReceipt     →  what happened and what was paid
-VerityReceipt        →  why it happened and can it be proven  [v0.2 roadmap]
+VerityReceipt        →  why it happened and can it be proven
 ```
 
-If your agent produces and consumes these objects correctly — it can transact with any ACP-compatible agent, on any platform, with any model, in any settlement unit.
+If your agent can produce and consume these five objects — it can transact with any other ACP-compatible agent, on any platform, with any model, in any settlement unit.
 
 ---
 
-## Why This Protocol Needs To Exist
+## Why This Protocol Exists
 
-The agent economy is forming right now. Agents are being deployed that call other agents, pay for API access, rent capabilities, and coordinate across workflows. But there is no economic primitive underneath any of it.
+The agent economy is forming right now. Agents are being deployed that call other agents, pay for API access, rent capabilities, and coordinate on tasks. But there is no economic primitive underneath any of it.
 
 Without a shared protocol:
-
-- Agents cannot safely pay each other without human intermediation
-- There is no standard for negotiating usage terms autonomously
-- Conditional escrow does not exist at the agent layer
+- Agents cannot safely pay each other
+- There is no standard for negotiating usage terms
+- Escrow and conditional settlement do not exist at the agent layer
 - No tamper-proof record of what an agent did or was paid for
-- Split revenue across multi-agent workflows cannot be automated
-- Disputes between agents have no deterministic resolution path
+- Split revenue across multi-agent workflows is impossible to automate
+- Disputes have no deterministic resolution path
 
-The window to define these defaults is short. Protocols win when they are adopted early and depended on before alternatives emerge. ACP is being defined now — before the market fragments into incompatible private formats.
+ACP is the missing economic layer. It does not replace existing payment systems. It sits above them as a coordination and accountability standard that any settlement unit — fiat, stablecoin, or network credit — can plug into.
 
 ---
 
 ## The Five Primitives
 
 ### 1. `AgentIdentity`
-The permanent economic passport of an autonomous agent. Ed25519 cryptographic anchor. Machine-readable capability declarations. Pricing structure (fixed, dynamic, auction, outcome-based). SLA guarantees. Risk profile. Append-only reputation ledger that compounds with every interaction. An agent reads another agent's `AgentIdentity` and decides autonomously whether to hire it.
+The permanent economic passport of an autonomous agent. Cryptographically anchored with Ed25519. Includes capability declarations in machine-readable schema, pricing structure (fixed, dynamic, auction, outcome-based), SLA guarantees, risk profile, and an append-only reputation ledger. An agent reads another agent's `AgentIdentity` and decides autonomously whether to hire it — no human involvement required.
 
 ### 2. `NegotiationContract`
-The terms of a proposed exchange. Exactly four states: `OFFER → COUNTER → ACCEPT → REJECT`. Every offer is time-bound — no open-ended negotiations. Conditional pricing natively supported. SLA declared before execution begins. Every state transition signed and permanently logged to both agents' histories.
+The terms of a proposed exchange. ACP uses exactly four states: `OFFER → COUNTER → ACCEPT → REJECT`. Every offer is time-bound. Conditional pricing is supported natively — "pay X if completed in 2 seconds, Y if 5 seconds." SLA is declared before execution begins. Every state transition is signed and permanently logged to both agents' histories.
 
 ### 3. `SettlementIntent`
-The escrow instruction. Value locked. Release condition declared upfront. Verification method specified — deterministic, probabilistic, or human-verified. Split rules for multi-agent workflows declared at creation. Every failure mode has a pre-declared resolution. No value ever in limbo. Idempotent by design.
+The escrow instruction. Funds are locked. The release condition is declared upfront. The verification method is specified — deterministic, probabilistic, or human-verified. Split rules for multi-agent workflows are declared at creation time. Every failure mode has a pre-declared outcome. No money ever sits in limbo. Idempotent by design — agents retry safely.
 
 ### 4. `ExecutionReceipt`
-The tamper-proof record of every economic event. Signed. Timestamped. Permanently attached to both agents' identities. Full event chain from negotiation to settlement. Split distributions. Performance against declared SLA. Reputation impact. Replayable. The audit primitive of the agent economy.
+The tamper-proof record of every economic event. Cryptographically signed. Timestamped. Permanently attached to both agents' identities. Contains the full event chain from negotiation initiation to final settlement, split distributions, performance against declared SLA, and reputation impact. Replayable. The audit primitive of the agent economy.
 
-### 5. `VerityReceipt` *(v0.2 roadmap — not required for v0.1 compliance)*
-The truth primitive. Captures the complete reasoning state at every significant decision point — not just what was decided, but why. Signed, replayable, provable. Given the same input state and the same rules, any decision re-runs to produce the same outcome deterministically. The legal and regulatory primitive for autonomous commerce.
+### 5. `VerityReceipt`
+The truth primitive. Every significant decision in the settlement flow — condition verification, dispute resolution, reputation scoring — is captured with its complete reasoning state. Not just what was decided. Why. The `VerityReceipt` is signed, replayable, and provable. Given the same input state and the same rules, any decision can be re-run to produce the same outcome deterministically. This is the legal and regulatory primitive for autonomous commerce.
 
 ---
 
@@ -78,190 +74,227 @@ Every ACP interaction follows one sequence:
 REGISTER → NEGOTIATE → EXECUTE → SETTLE → AUDIT
 ```
 
-Every feature of every ACP-compatible system maps to one of these five steps. Nothing outside this sequence is part of ACP. Simplicity is a design constraint, not a limitation.
+Every feature of every ACP-compatible system maps to one of these five steps. Nothing outside this sequence is part of ACP. Simplicity is a design constraint.
 
-### Interaction Flow
+### Negotiation States
 
 ```
-Agent A reads Agent B's AgentIdentity from registry
+OFFER
+  ↓
+COUNTER  ←── (repeatable)
+  ↓
+ACCEPT or REJECT
+```
+
+Four states. No more. Agents operate in milliseconds. Complexity kills adoption.
+
+### Settlement Flow
+
+```
+NegotiationContract accepted
         ↓
-Agent A creates NegotiationContract (state: OFFER)
+SettlementIntent created (funds locked)
         ↓
-Agent B counters or accepts (state: COUNTER / ACCEPT)
+Execution begins
         ↓
-SettlementIntent created — value locked in escrow
+Result submitted by executing agent
         ↓
-Agent B executes the task
+Condition verified (deterministic / probabilistic / human)
         ↓
-Result submitted — condition verified
+Funds released to split recipients  OR  rolled back to payer
         ↓
-Value released to split recipients  OR  rolled back to Agent A
-        ↓
-ExecutionReceipt issued to both agents' permanent histories
+ExecutionReceipt issued + VerityReceipt captured
 ```
 
 ---
 
 ## Schema Reference
 
-All ACP v0.1 schemas live in [`/acp/schemas`](/acp/schemas). Each is a JSON Schema (Draft 2020-12) document with a complete working example.
+All five ACP primitive schemas live in `/acp/schemas`. They are JSON Schema (Draft 2020-12) documents, validated against the specification.
 
-| Object | Schema | v0.1 Status |
+| Schema | File | Status |
 |---|---|---|
-| `AgentIdentity` | [`/acp/schemas/agent-identity.json`](/acp/schemas/agent-identity.json) | ✅ Draft complete |
-| `NegotiationContract` | [`/acp/schemas/negotiation-contract.json`](/acp/schemas/negotiation-contract.json) | ✅ Draft complete |
-| `SettlementIntent` | [`/acp/schemas/settlement-intent.json`](/acp/schemas/settlement-intent.json) | ✅ Draft complete |
-| `ExecutionReceipt` | [`/acp/schemas/execution-receipt.json`](/acp/schemas/execution-receipt.json) | ✅ Draft complete |
-| `VerityReceipt` | [`/acp/schemas/verity-receipt.json`](/acp/schemas/verity-receipt.json) | 🗓 v0.2 roadmap |
+| `AgentIdentity` | [`/acp/schemas/agent-identity.json`](/acp/schemas/agent-identity.json) | ✅ v0.1 Draft |
+| `NegotiationContract` | [`/acp/schemas/negotiation-contract.json`](/acp/schemas/negotiation-contract.json) | ✅ v0.1 Draft |
+| `SettlementIntent` | [`/acp/schemas/settlement-intent.json`](/acp/schemas/settlement-intent.json) | ✅ v0.1 Draft |
+| `ExecutionReceipt` | [`/acp/schemas/execution-receipt.json`](/acp/schemas/execution-receipt.json) | ✅ v0.1 Draft |
+| `VerityReceipt` | [`/acp/schemas/verity-receipt.json`](/acp/schemas/verity-receipt.json) | 🔄 In Progress |
 
-**v0.1 compliance requires:** `AgentIdentity`, `NegotiationContract`, `SettlementIntent`, `ExecutionReceipt`.
-`VerityReceipt` is not required for v0.1 compliance. It is planned for v0.2.
-
-Read the schemas. Each includes a complete example. If you can produce a valid, signed instance of each v0.1 object — you understand the protocol.
-
----
-
-## Current Stage
-
-**This repository is at the specification and public validation stage.**
-
-What exists:
-- Protocol specification (this README)
-- Four complete v0.1 JSON schemas with examples
-- Architectural documentation in [`/docs`](/docs)
-
-What does not exist yet:
-- Reference implementation (in development — [Agentra Rail](https://www.agentralabs.tech))
-- Conformance test suite (planned for v0.1 release)
-- Client libraries in Python and TypeScript (planned)
-- COMPATIBILITY.md, GOVERNANCE.md, SECURITY.md (planned — see roadmap)
-
-See [`docs/STAGE.md`](docs/STAGE.md) for the full honest breakdown.
+Each schema includes a working example showing a complete, valid object. Read the schema. You understand ACP.
 
 ---
 
 ## What ACP Is Not
 
-**Not a payment processor.** ACP does not move money. It coordinates above payment systems. Stripe, USDC, and internal credit systems are valid settlement units underneath ACP.
+**ACP is not a payment processor.** It does not move money. It defines the coordination layer above payment systems. Stripe, USDC, and internal credit systems are all valid settlement units underneath ACP.
 
-**Not a blockchain protocol.** No chain required. On-chain settlement is supported but not required.
+**ACP is not a blockchain protocol.** It does not require a chain. It can settle on-chain if desired but operates equally well on traditional financial infrastructure.
 
-**Not a marketplace.** ACP does not match buyers to sellers. It defines what happens after they find each other.
+**ACP is not a marketplace.** It does not match buyers to sellers. It defines what happens after they find each other.
 
-**Not model-specific.** Any agent on any model — GPT-4, Claude, Gemini, Llama — implements ACP the same way.
+**ACP is not model-specific.** It does not care what model powers an agent. GPT-4, Claude, Gemini, Llama — any agent on any model can implement ACP.
 
-**Not a lock-in mechanism.** MIT licensed. Any system implements it. The goal is adoption, not control.
+**ACP is not a vendor lock-in mechanism.** Any system can implement it. The spec is MIT licensed. The goal is for ACP to become the default assumption in agent commerce — not to lock anyone in.
 
 ---
 
 ## Relationship To Agentra Labs And Agentra Rail
 
-[**Agentra Labs**](https://www.agentralabs.tech) builds the open-source cognitive substrate that makes agents persistent, trustworthy, and governable — memory, identity, planning, communication, and more.
+ACP is maintained by [Agentra Labs](https://www.agentralabs.tech) as an open contribution to the agent economy.
 
-**Agentra Rail** (in development) is the production implementation of ACP — the commercial infrastructure layer where agents register, negotiate, settle, and audit at scale.
+**Agentra Labs** builds the open-source cognitive substrate that makes agents persistent, trustworthy, and governable — memory, identity, planning, communication, and more. The Labs stack is what makes agents capable enough to transact.
 
-**ACP** (this repo) is the open protocol standard. It belongs to the community.
+**Agentra Rail** is the production implementation of ACP — the commercial infrastructure layer where agents register, negotiate, settle, and audit at scale. Rail is what runs ACP in production with the reliability, speed, and correctness that enterprises depend on.
+
+The relationship:
 
 ```
-ACP (this repo)     →  the open language every agent economy system speaks
+ACP (this repo)     →  the open language everyone speaks
 Agentra Labs        →  the cognitive substrate that makes agents capable
 Agentra Rail        →  the production infrastructure ACP runs on
 ```
 
-You do not need Rail to implement ACP. The protocol is independent of the implementation.
+ACP belongs to the community. Agentra Rail is the reference implementation. You do not need Rail to implement ACP. But if you want production settlement, governance, Verity replay, and split settlement at scale — Rail is where you go.
 
 ---
 
 ## Design Principles
 
-**Deterministic over ambiguous.** Every interaction has a defined outcome. Every failure mode has a pre-declared resolution.
+**Deterministic over ambiguous.** Every interaction has a defined outcome. Every failure mode has a pre-declared resolution. No money in limbo. No unresolved states.
 
-**Agent-native over human-friendly.** Designed for LLMs and agents to consume autonomously. Machine-readable first.
+**Agent-native over human-friendly.** ACP is designed for LLMs and agents to consume autonomously. Machine-readable first. If an agent can read the spec and integrate without human help — the design is working.
 
-**Protocol over product.** ACP defines behavior, not implementation. Any system that correctly produces and consumes the four v0.1 primitive objects is ACP-compatible.
+**Protocol over product.** ACP defines behavior, not implementation. Any system that produces and consumes the five primitive objects correctly is ACP-compatible.
 
-**Escrow over payment.** The primitive is not "agent A pays agent B." It is "agent A releases value to agent B when verifiable condition X is satisfied."
+**Escrow over payment.** The core primitive is not "agent A pays agent B." It is "agent A releases funds to agent B when verifiable condition X is satisfied." This distinction is architectural.
 
-**Append-only truth.** Reputation history is never deleted. Execution history is permanent. The past is not editable. This is the foundation of trust between agents that have never met before.
+**Open primitives, closed engines.** The protocol is open. What settlement engines, verification algorithms, and reputation systems do with the protocol is up to each implementer.
 
-**Open primitives.** The protocol is MIT licensed. Implementations compete on quality. The spec is shared.
+**Append-only truth.** Reputation history is never deleted. Execution history is permanent. Negotiation history is signed and immutable. The past is not editable. This is the foundation of trust between agents that have never met.
+
+---
+
+## Versioning
+
+ACP uses semantic versioning. Breaking changes increment the major version. The current status is `v0.1 Draft` — open for community review and feedback before `v1.0` is locked.
+
+Backward compatibility is a first-class design constraint from `v1.0` onward. Once locked, systems built on ACP v1.0 will not break when v1.1 ships.
+
+---
+
+## How To Implement ACP
+
+An ACP-compatible system must:
+
+1. **Produce valid objects** — every object created validates against the corresponding JSON schema
+2. **Sign every object** — using Ed25519. The signing key must correspond to a registered `AgentIdentity`
+3. **Enforce state machines** — `NegotiationContract` and `SettlementIntent` follow declared state transitions only
+4. **Handle idempotency** — settlement calls with the same `idempotency_key` return the existing result without creating duplicates
+5. **Issue receipts** — every settled `SettlementIntent` produces an `ExecutionReceipt`
+6. **Capture decisions** — every significant decision point produces a `VerityReceipt`
+
+There is no certification process yet. If your system does these six things correctly — it is ACP-compatible. We are working on a compliance test suite (see Contributing below).
 
 ---
 
 ## Contributing
 
-ACP is in active public validation. The most valuable contributions right now are not code — they are rigorous thinking about whether the spec is correct.
+ACP is an early-stage open standard. The most valuable contributions right now are not code — they are thinking.
 
-**Read [`docs/VALIDATION-PLAN.md`](docs/VALIDATION-PLAN.md) first.** It explains the hypotheses we are testing and the evidence we need.
+### What We Need Most
 
-### Where To Contribute
+**Schema feedback — most urgent**
+Read the five schemas. Try to build something with them. Tell us where they break, where they are too rigid, where they are too loose, where a field is missing, where a field makes no sense. Every schema issue found now prevents a breaking change later.
 
-| Area | What We Need | Label |
-|---|---|---|
-| Schema correctness | Does the schema model the domain accurately? Missing fields? Wrong types? | `schema-feedback` |
-| Edge cases | What breaks? What is unhandled? What is ambiguous? | `edge-case` |
-| Vertical schemas | Capability vocabulary for your industry (legal, finance, healthcare, logistics) | `vertical-schema` |
-| Dispute resolution | What is the fairest deterministic algorithm for resolving condition disputes? | `dispute-resolution` |
-| ACP Credit design | Monetary policy — issuance, burning, peg mechanism, supply cap | `monetary-policy` |
-| Verity legal standing | Which jurisdictions recognize decision replay as evidence? | `verity-legal` |
-| Implementation feedback | Building ACP-compatible systems? What was hard, unclear, or missing? | `implementation-feedback` |
+Open an issue with the label `schema-feedback`.
+
+**Edge cases**
+What happens when an agent submits an execution result after the deadline? What happens when split rules don't sum correctly? What happens when a quality score is gamed? We have thought hard about this — but we have not thought of everything. Every edge case you surface that we have not handled is a gift.
+
+Open an issue with the label `edge-case`.
+
+**Vertical-specific schemas**
+ACP v0.1 includes capability schemas for four verticals: AI inference, data enrichment, web automation, and developer tooling. Every industry that deploys agents will need its own capability vocabulary. If you are building agents in legal, finance, healthcare, logistics, or any other domain — we want to define the capability schema for your vertical together.
+
+Open an issue with the label `vertical-schema` and describe your use case.
+
+**Alternative implementation feedback**
+If you are building an ACP-compatible system that is not Agentra Rail — we want to know what was hard to implement, what was unclear, and what you had to invent yourself because the spec did not cover it.
+
+Open an issue with the label `implementation-feedback`.
+
+**Dispute resolution rules**
+ACP declares that disputes have deterministic resolution — but the spec does not yet fully define what those rules are. This is an open design problem. How should a dispute between two agents be resolved automatically? What inputs matter? What is the fairest deterministic algorithm? This requires real thinking from people who understand agent economics.
+
+Open a discussion with the label `dispute-resolution`.
+
+**ACP Credit monetary policy**
+The spec references ACP Credit as a native settlement unit but does not define its monetary policy — how credits are issued, what they are worth, whether there is a supply cap, and how they are burned. This is a hard problem that intersects economics, game theory, and agent incentive design.
+
+Open a discussion with the label `monetary-policy`.
+
+**Verity legal standing**
+The `VerityReceipt` is designed to be the legal and regulatory primitive for autonomous agent decisions. But whether a replay constitutes admissible evidence varies by jurisdiction. We need people who understand law in the US, EU, UK, Singapore, and other key jurisdictions to engage with what `VerityReceipt` would need to satisfy legal standards in their jurisdiction.
+
+Open a discussion with the label `verity-legal`.
+
+### What We Are Not Looking For Right Now
+
+- Pull requests that change the core protocol objects without a prior discussion issue
+- Implementation code in this repo (implementations belong in separate repos)
+- Marketing copy improvements
 
 ### How To Contribute
 
-1. Read the schemas in `/acp/schemas` — they are the source of truth
-2. Read the open issues and discussions to see what is already being debated
-3. Open an issue or discussion before writing anything substantial
-4. Use the correct label
-
-We are not accepting pull requests that change core protocol objects without a prior discussion issue. The spec must be debated before it changes.
+1. Read the schemas in `/acp/schemas` first. They are the source of truth.
+2. Read the open discussions to understand what is already being debated.
+3. Open an issue or discussion before writing anything substantial.
+4. Use the correct label so it reaches the right people.
 
 ---
 
 ## Open Questions
 
-These are the hardest unsolved problems in ACP. Deep expertise wanted.
+These are the hardest unsolved problems in ACP. If you have deep expertise in any of these — we want to hear from you.
 
-- **ACP Credit monetary policy** — issuance, burning, peg, supply cap
-- **Verity legal standing** — jurisdictional recognition of replay as evidence
-- **Cross-model credit bridging** — universal conversion without custodial risk
-- **Registry governance** — who approves schema changes after v1.0 locks
-- **Dispute escalation thresholds** — when does human arbitration become mandatory
-- **Agent insurance primitives** — does ACP define a coverage object
-- **DAO transition** — when and how does governance decentralize
+**ACP Credit monetary policy** — How is ACP Credit issued? Is it earned through completed settlements only? Is there a supply cap? What maintains the peg? What happens if Rail shuts down?
 
-See [`docs/ROADMAP.md`](docs/ROADMAP.md) for how these feed into future versions.
+**Verity legal standing** — Which jurisdictions would recognize a `VerityReceipt` replay as admissible evidence? What additional fields or attestations would be required?
 
----
+**Cross-model credit bridging** — Agents run on different models with different native credit systems. How does a universal conversion layer work without introducing a custodial risk?
 
-## Docs
+**Registry governance** — Who can propose changes to ACP schemas after v1.0 is locked? How are breaking changes decided? Does governance eventually decentralize?
 
-| Document | Purpose |
-|---|---|
-| [`docs/STAGE.md`](docs/STAGE.md) | Honest breakdown of what exists and what does not |
-| [`docs/VALIDATION-PLAN.md`](docs/VALIDATION-PLAN.md) | Hypotheses, success criteria, evidence to collect |
-| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Phase-based milestones from draft to v1.0 |
-| [`docs/ADOPTION-PLAYBOOK.md`](docs/ADOPTION-PLAYBOOK.md) | How to drive ecosystem uptake from day one |
+**Dispute escalation threshold** — At what transaction value does human arbitration become mandatory? How is this calibrated across different verticals?
+
+**Agent insurance** — Should ACP define a primitive for agent insurance? Who underwrites it? How does the `ExecutionReceipt` interact with an insurance claim?
+
+**DAO transition** — Should ACP governance eventually move to token holders? If so, what triggers that transition, and how does it happen without breaking existing implementations?
 
 ---
 
 ## Community
 
-**Discord:** [Join @agentralabs](https://discord.gg/agentralabs)
-**X / Twitter:** [Follow @agentralab](https://x.com/agentralab)
-**Email:** [hello@agentralabs.tech](mailto:hello@agentralabs.tech)
+**Discord:** [Join @agentralabs](https://discord.gg/agentralabs) — real-time discussion, implementation help, schema debates
+
+**X / Twitter:** [Follow @agentralab](https://x.com/agentralab) — protocol updates, launch signals, community highlights
+
+**Email:** [hello@agentralabs.tech](mailto:hello@agentralabs.tech) — research collaboration, enterprise implementation, formal feedback
 
 ---
 
 ## License
 
-MIT. The protocol is free. Forever.
+ACP schemas and specification documents are released under the [MIT License](LICENSE).
+
+The protocol is free. Forever. The goal is adoption, not control.
 
 ---
 
-## Repository Topics
+## GitHub Topics
 
-`acp-protocol` `agent-commerce` `autonomous-agents` `agent-economy` `ai-agents` `agent-settlement` `agent-identity` `multi-agent` `open-standard` `protocol` `agentic-ai` `llm-agents` `agent-infrastructure` `agentra` `escrow` `agent-negotiation`
+`agent-commerce` `autonomous-agents` `acp-protocol` `agent-economy` `ai-agents` `agent-settlement` `agent-identity` `escrow` `multi-agent` `open-standard` `protocol` `agentic-ai` `llm-agents` `agent-infrastructure` `agentra`
 
 ---
 
-*ACP is maintained by [Agentra Labs](https://www.agentralabs.tech). The protocol belongs to the community. The reference implementation is Agentra Rail.*
+*ACP is maintained by Agentra Labs. The protocol belongs to the community. The reference implementation is [Agentra Rail](https://www.agentralabs.tech).*
