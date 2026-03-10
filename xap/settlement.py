@@ -50,13 +50,48 @@ class SettlementIntent:
         if parse_utc(utc_now_iso()) > parse_utc(negotiation_data["expires_at"]):
             raise XAPExpiredError("Cannot create settlement from an expired negotiation")
 
+        # v0.2 uses sla; v0.1 uses sla_declaration
+        sla_data = negotiation_data.get("sla") or negotiation_data.get("sla_declaration", {})
+
         created_at = parse_utc(utc_now_iso())
-        max_latency_ms = negotiation_data.get("sla_declaration", {}).get("max_latency_ms", 60000)
+        max_latency_ms = sla_data.get("max_latency_ms", 60000)
         execution_deadline = created_at + timedelta(milliseconds=max_latency_ms * 2)
+
+        # Support both v0.1 and v0.2 negotiation field names
+        payer = negotiation_data.get("from_agent") or negotiation_data.get("initiator_agent_id", "")
+        payee = negotiation_data.get("to_agent") or negotiation_data.get("counterparty_agent_id", "")
+
+        # v0.2 uses pricing.amount_minor_units; v0.1 uses offer.offered_rate
+        if "pricing" in negotiation_data:
+            locked_amount = negotiation_data["pricing"]["amount_minor_units"]
+            settlement_unit = negotiation_data["pricing"]["currency"]
+        else:
+            locked_amount = negotiation_data["offer"]["offered_rate"]
+            settlement_unit = negotiation_data["offer"]["settlement_unit"]
+
+        # Build condition from available data
+        if "offer" in negotiation_data and "payment_condition" in negotiation_data.get("offer", {}):
+            condition = deep_copy(negotiation_data["offer"]["payment_condition"])
+        else:
+            min_quality_bps = sla_data.get("min_quality_score_bps")
+            if min_quality_bps is not None:
+                condition = {
+                    "condition_type": "probabilistic",
+                    "description": f"quality_score >= {min_quality_bps} bps",
+                    "probabilistic_check": {
+                        "score_field": "quality_score",
+                        "minimum_score": min_quality_bps / 10000.0,
+                    },
+                }
+            else:
+                condition = {
+                    "condition_type": "deterministic",
+                    "description": "execution completed",
+                }
 
         split_rules = negotiation_data.get("split_rules") or [
             {
-                "recipient_agent_id": negotiation_data["counterparty_agent_id"],
+                "recipient_agent_id": payee,
                 "share_type": "percentage",
                 "percentage": 100,
                 "role": "subagent",
@@ -64,7 +99,7 @@ class SettlementIntent:
             }
         ]
 
-        partial_policy = negotiation_data.get("sla_declaration", {}).get("partial_completion_policy", "pro_rata")
+        partial_policy = sla_data.get("partial_completion_policy", "pro_rata")
         policy_map = {
             "pro_rata": "pro_rata_release",
             "full_release": "full_release",
@@ -76,11 +111,11 @@ class SettlementIntent:
             "settlement_id": generate_prefixed_id("stl_"),
             "state": "LOCKED",
             "negotiation_id": negotiation_data["negotiation_id"],
-            "payer_agent_id": negotiation_data["initiator_agent_id"],
-            "payee_agent_id": negotiation_data["counterparty_agent_id"],
-            "locked_amount": negotiation_data["offer"]["offered_rate"],
-            "settlement_unit": negotiation_data["offer"]["settlement_unit"],
-            "condition": deep_copy(negotiation_data["offer"]["payment_condition"]),
+            "payer_agent_id": payer,
+            "payee_agent_id": payee,
+            "locked_amount": locked_amount,
+            "settlement_unit": settlement_unit,
+            "condition": condition,
             "split_rules": split_rules,
             "failure_handling": {
                 "on_full_failure": "full_rollback",
@@ -91,7 +126,7 @@ class SettlementIntent:
             "idempotency_key": idempotency_key,
             "created_at": created_at.isoformat() + "Z",
             "execution_deadline": execution_deadline.isoformat() + "Z",
-            "declared_sla": deep_copy(negotiation_data.get("sla_declaration", {})),
+            "declared_sla": deep_copy(sla_data),
         }
 
         validate_against_schema(cls.SCHEMA, data)
@@ -316,48 +351,37 @@ def _event_hash(event: dict[str, Any]) -> str:
 
 def _build_initial_event_chain(negotiation_data: dict[str, Any], settlement_id: str) -> list[dict[str, Any]]:
     chain: list[dict[str, Any]] = []
+    initiator = negotiation_data.get("from_agent") or negotiation_data.get("initiator_agent_id", "")
+
     first_event = {
         "event_id": generate_prefixed_id("evt_"),
         "event_type": "NEGOTIATION_INITIATED",
         "timestamp": negotiation_data["created_at"],
-        "agent_id": negotiation_data["initiator_agent_id"],
+        "agent_id": initiator,
         "event_data": {"negotiation_id": negotiation_data["negotiation_id"]},
         "previous_event_hash": "",
     }
     first_event["signature"] = sign_payload(first_event, _PLATFORM_PRIVATE_KEY, exclude_fields=["signature"])
     chain.append(first_event)
 
-    for history_item in negotiation_data.get("negotiation_history", []):
-        state = history_item.get("state", "OFFER")
-        if state == "OFFER":
-            event_type = "OFFER_MADE"
-        elif state == "COUNTER":
-            event_type = "COUNTER_MADE"
-        elif state == "ACCEPT":
-            event_type = "CONTRACT_ACCEPTED"
-        else:
-            event_type = "OFFER_MADE"
-
-        event = {
-            "event_id": generate_prefixed_id("evt_"),
-            "event_type": event_type,
-            "timestamp": history_item.get("timestamp", utc_now_iso()),
-            "agent_id": history_item.get("proposed_by", negotiation_data["initiator_agent_id"]),
-            "event_data": {"state": state, "offered_rate": history_item.get("offered_rate")},
-            "previous_event_hash": _event_hash(chain[-1]),
-        }
-        event["signature"] = history_item.get("signature") or sign_payload(
-            event,
-            _PLATFORM_PRIVATE_KEY,
-            exclude_fields=["signature"],
-        )
-        chain.append(event)
+    state = negotiation_data.get("state", "OFFER")
+    event_type_map = {"OFFER": "OFFER_MADE", "COUNTER": "COUNTER_MADE", "ACCEPT": "CONTRACT_ACCEPTED", "REJECT": "OFFER_MADE"}
+    event = {
+        "event_id": generate_prefixed_id("evt_"),
+        "event_type": event_type_map.get(state, "OFFER_MADE"),
+        "timestamp": negotiation_data.get("created_at", utc_now_iso()),
+        "agent_id": initiator,
+        "event_data": {"state": state},
+        "previous_event_hash": _event_hash(chain[-1]),
+    }
+    event["signature"] = sign_payload(event, _PLATFORM_PRIVATE_KEY, exclude_fields=["signature"])
+    chain.append(event)
 
     lock_event = {
         "event_id": generate_prefixed_id("evt_"),
         "event_type": "FUNDS_LOCKED",
         "timestamp": utc_now_iso(),
-        "agent_id": negotiation_data["initiator_agent_id"],
+        "agent_id": initiator,
         "event_data": {"settlement_id": settlement_id},
         "previous_event_hash": _event_hash(chain[-1]),
     }

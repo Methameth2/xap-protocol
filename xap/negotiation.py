@@ -1,22 +1,26 @@
-"""NegotiationContract implementation for XAP v0.1."""
+"""NegotiationContract implementation for XAP v0.2."""
 
 from __future__ import annotations
 
+import secrets
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, ClassVar
 
 from ._common import (
     deep_copy,
-    generate_prefixed_id,
     parse_utc,
     utc_now_iso,
     validate_against_schema,
 )
-from .crypto import generate_keypair, sign_payload
+from .crypto import canonical_json_hash, generate_keypair, sign_payload
 from .errors import XAPExpiredError, XAPStateError
 
 _SYSTEM_PRIVATE_KEY, _SYSTEM_PUBLIC_KEY = generate_keypair()
+
+
+def _generate_negotiation_id() -> str:
+    return f"neg_{secrets.token_hex(4)}"
 
 
 @dataclass
@@ -32,29 +36,38 @@ class NegotiationContract:
     @classmethod
     def create(
         cls,
-        initiator_id: str,
-        counterparty_id: str,
-        capability_id: str,
-        offer: dict[str, Any],
+        from_agent: str,
+        to_agent: str,
+        task: dict[str, Any],
+        pricing: dict[str, Any],
         sla: dict[str, Any],
         expires_in_seconds: int,
+        max_rounds: int = 20,
+        identity_snapshot: dict[str, Any] | None = None,
+        parent_negotiation_id: str | None = None,
     ) -> "NegotiationContract":
         created = parse_utc(utc_now_iso())
         expires = created + timedelta(seconds=expires_in_seconds)
 
-        data = {
-            "xap_version": "0.1",
-            "negotiation_id": generate_prefixed_id("neg_"),
+        data: dict[str, Any] = {
+            "negotiation_id": _generate_negotiation_id(),
             "state": "OFFER",
-            "initiator_agent_id": initiator_id,
-            "counterparty_agent_id": counterparty_id,
-            "capability_id": capability_id,
-            "offer": offer,
-            "sla_declaration": sla,
-            "negotiation_history": [],
-            "created_at": created.isoformat() + "Z",
+            "round_number": 1,
+            "max_rounds": max_rounds,
+            "from_agent": from_agent,
+            "to_agent": to_agent,
+            "task": task,
+            "pricing": pricing,
+            "sla": sla,
             "expires_at": expires.isoformat() + "Z",
+            "xap_version": "0.2.0",
+            "created_at": created.isoformat() + "Z",
+            "signature": "",
         }
+        if identity_snapshot is not None:
+            data["identity_snapshot"] = identity_snapshot
+        if parent_negotiation_id is not None:
+            data["parent_negotiation_id"] = parent_negotiation_id
 
         validate_against_schema(cls.SCHEMA, data)
         return cls(data)
@@ -62,37 +75,39 @@ class NegotiationContract:
     def is_expired(self) -> bool:
         return parse_utc(utc_now_iso()) > parse_utc(self._data["expires_at"])
 
-    def _append_history_entry(self, state: str, proposed_by: str, private_key: str, note: str = "") -> None:
-        entry = {
-            "state": state,
-            "proposed_by": proposed_by,
-            "offered_rate": self._data["offer"].get("offered_rate"),
-            "note": note,
-            "timestamp": utc_now_iso(),
-        }
-        entry["signature"] = sign_payload(entry, private_key, exclude_fields=["signature"])
-        self._data.setdefault("negotiation_history", []).append(entry)
-
     def counter(
         self,
-        new_offer: dict[str, Any],
+        pricing: dict[str, Any],
         proposed_by: str,
         private_key: str | None = None,
+        sla: dict[str, Any] | None = None,
     ) -> "NegotiationContract":
         if self.is_expired():
             raise XAPExpiredError("Negotiation is expired")
 
         current = self._data["state"]
-        if current == "OFFER":
-            next_state = "COUNTER"
-        elif current == "COUNTER":
-            next_state = "OFFER"
-        else:
-            raise XAPStateError(f"Invalid transition from {current} to COUNTER/OFFER")
+        if current not in {"OFFER", "COUNTER"}:
+            raise XAPStateError(f"Invalid transition from {current} to COUNTER")
 
-        self._data["offer"] = new_offer
-        self._data["state"] = next_state
-        self._append_history_entry(next_state, proposed_by, private_key or _SYSTEM_PRIVATE_KEY, note="counter")
+        max_rounds = self._data.get("max_rounds", 20)
+        next_round = self._data["round_number"] + 1
+        if next_round > max_rounds:
+            raise XAPStateError("Maximum negotiation rounds reached")
+
+        prev_hash = f"sha256:{canonical_json_hash(self._data, exclude_fields=['signature'])}"
+
+        self._data["pricing"] = pricing
+        if sla is not None:
+            self._data["sla"] = sla
+        self._data["state"] = "COUNTER"
+        self._data["round_number"] = next_round
+        self._data["previous_state_hash"] = prev_hash
+        self._data["from_agent"], self._data["to_agent"] = proposed_by, self._data["from_agent"]
+        self._data["created_at"] = utc_now_iso()
+        self._data["signature"] = sign_payload(
+            self._data, private_key or _SYSTEM_PRIVATE_KEY, exclude_fields=["signature"]
+        )
+
         validate_against_schema(self.SCHEMA, self._data)
         return self
 
@@ -101,40 +116,44 @@ class NegotiationContract:
             raise XAPExpiredError("Negotiation is expired")
 
         current = self._data["state"]
-        if current not in {"OFFER", "COUNTER", "ACCEPT"}:
+        if current not in {"OFFER", "COUNTER"}:
             raise XAPStateError(f"Invalid transition from {current} to ACCEPT")
-        if current != "ACCEPT":
-            self._data["state"] = "ACCEPT"
-            self._data["accepted_at"] = utc_now_iso()
-        if agent_id == self._data["initiator_agent_id"]:
-            if self._data.get("final_signature_initiator"):
-                raise XAPStateError("Initiator has already accepted this negotiation")
-            self._data["final_signature_initiator"] = sign_payload(
-                self._data,
-                private_key,
-                exclude_fields=["final_signature_initiator", "final_signature_counterparty"],
-            )
-        elif agent_id == self._data["counterparty_agent_id"]:
-            if self._data.get("final_signature_counterparty"):
-                raise XAPStateError("Counterparty has already accepted this negotiation")
-            self._data["final_signature_counterparty"] = sign_payload(
-                self._data,
-                private_key,
-                exclude_fields=["final_signature_initiator", "final_signature_counterparty"],
-            )
-        else:
-            raise XAPStateError("accepting agent_id is not part of the negotiation")
 
-        self._append_history_entry("ACCEPT", agent_id, private_key, note="accept")
+        prev_hash = f"sha256:{canonical_json_hash(self._data, exclude_fields=['signature'])}"
+
+        self._data["state"] = "ACCEPT"
+        self._data["previous_state_hash"] = prev_hash
+        self._data["from_agent"] = agent_id
+        self._data["to_agent"] = (
+            self._data["to_agent"]
+            if self._data["from_agent"] == agent_id
+            else self._data["from_agent"]
+        )
+        self._data["created_at"] = utc_now_iso()
+        self._data["signature"] = sign_payload(
+            self._data, private_key, exclude_fields=["signature"]
+        )
+
         validate_against_schema(self.SCHEMA, self._data)
         return self
 
     def reject(self, agent_id: str, private_key: str | None = None) -> "NegotiationContract":
-        if self._data["state"] == "REJECT":
-            raise XAPStateError("Negotiation is already REJECT")
+        current = self._data["state"]
+        if current in {"ACCEPT", "REJECT"}:
+            raise XAPStateError(f"Negotiation is already in terminal state {current}")
 
+        prev_hash = f"sha256:{canonical_json_hash(self._data, exclude_fields=['signature'])}"
+
+        other = self._data["to_agent"] if self._data["from_agent"] == agent_id else self._data["from_agent"]
         self._data["state"] = "REJECT"
-        self._append_history_entry("REJECT", agent_id, private_key or _SYSTEM_PRIVATE_KEY, note="reject")
+        self._data["previous_state_hash"] = prev_hash
+        self._data["from_agent"] = agent_id
+        self._data["to_agent"] = other
+        self._data["created_at"] = utc_now_iso()
+        self._data["signature"] = sign_payload(
+            self._data, private_key or _SYSTEM_PRIVATE_KEY, exclude_fields=["signature"]
+        )
+
         validate_against_schema(self.SCHEMA, self._data)
         return self
 

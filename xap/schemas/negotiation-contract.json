@@ -1,299 +1,274 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://xap.agentralabs.tech/schemas/v0.1/negotiation-contract.json",
+  "$id": "https://xap.agentralabs.tech/schemas/v0.2/negotiation-contract.json",
   "title": "NegotiationContract",
-  "description": "XAP v0.1 — The terms of a proposed agent-to-agent exchange. Time-bound. Signed by both parties before execution begins. Permanently logged to both agents' identity histories.",
+  "description": "XAP v0.2 — Bilateral negotiation between two agents. Four states: OFFER, COUNTER, ACCEPT, REJECT. Every message is signed and chained via previous_state_hash.",
   "type": "object",
   "required": [
-    "xap_version",
     "negotiation_id",
     "state",
-    "initiator_agent_id",
-    "counterparty_agent_id",
-    "capability_id",
-    "offer",
-    "sla_declaration",
+    "round_number",
+    "from_agent",
+    "to_agent",
+    "task",
+    "pricing",
+    "sla",
+    "expires_at",
+    "xap_version",
     "created_at",
-    "expires_at"
+    "signature"
   ],
   "properties": {
-    "xap_version": {
-      "type": "string",
-      "const": "0.1"
-    },
     "negotiation_id": {
       "type": "string",
-      "pattern": "^neg_[a-zA-Z0-9]{32}$",
-      "description": "Globally unique negotiation identifier. Immutable once created."
+      "pattern": "^neg_[a-f0-9]{8}$",
+      "description": "Unique negotiation identifier. Immutable once created."
     },
     "state": {
       "type": "string",
       "enum": ["OFFER", "COUNTER", "ACCEPT", "REJECT"],
-      "description": "Current negotiation state. XAP v0.1 uses exactly four states. Simplicity is a design requirement."
+      "description": "Current negotiation state. Exactly four states. ACCEPT and REJECT are terminal."
     },
-    "initiator_agent_id": {
+    "round_number": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Which round this is. OFFER is round 1. Each COUNTER increments."
+    },
+    "max_rounds": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 20,
+      "description": "Maximum COUNTER rounds before auto-reject."
+    },
+    "from_agent": {
       "type": "string",
-      "description": "XAP agent_id of the agent initiating the negotiation."
+      "pattern": "^agent_[a-f0-9]{8}$",
+      "description": "Agent sending this message."
     },
-    "counterparty_agent_id": {
+    "to_agent": {
       "type": "string",
-      "description": "XAP agent_id of the agent receiving the negotiation."
+      "pattern": "^agent_[a-f0-9]{8}$",
+      "description": "Agent receiving this message."
     },
-    "capability_id": {
-      "type": "string",
-      "description": "The specific capability being negotiated for. Must match a capability_id in the counterparty's AgentIdentity."
-    },
-    "offer": {
+    "task": {
       "type": "object",
-      "description": "The current offer on the table. Replaced on each COUNTER state.",
-      "required": ["offered_rate", "settlement_unit", "payment_condition"],
+      "description": "What work is being negotiated.",
+      "required": ["type"],
       "properties": {
-        "offered_rate": {
-          "type": "number",
-          "minimum": 0,
-          "description": "Proposed rate for this execution in settlement units."
-        },
-        "settlement_unit": {
+        "type": {
           "type": "string",
-          "description": "Unit of account. Must match or be convertible to counterparty's declared settlement_unit."
+          "description": "Task capability name. Must match a capability in the payee's AgentIdentity."
         },
-        "payment_condition": {
-          "type": "object",
-          "description": "The condition under which funds are released. This feeds directly into the SettlementIntent.",
-          "required": ["condition_type", "description"],
-          "properties": {
-            "condition_type": {
-              "type": "string",
-              "enum": ["deterministic", "probabilistic", "human_verified"],
-              "description": "How success will be verified at settlement time. Declared upfront. No ambiguity later."
-            },
-            "description": {
-              "type": "string",
-              "description": "Plain language description of the success condition."
-            },
-            "deterministic_check": {
-              "type": "object",
-              "description": "For condition_type: deterministic. Machine-verifiable check.",
-              "properties": {
-                "check_type": {
-                  "type": "string",
-                  "enum": ["http_status", "schema_valid", "value_match", "custom"]
-                },
-                "expected_value": {},
-                "check_path": {
-                  "type": "string",
-                  "description": "JSONPath expression to the value being checked in the execution output."
-                }
-              }
-            },
-            "probabilistic_check": {
-              "type": "object",
-              "description": "For condition_type: probabilistic. Score-based verification.",
-              "properties": {
-                "score_field": {
-                  "type": "string",
-                  "description": "Field in execution output containing the quality score."
-                },
-                "minimum_score": {
-                  "type": "number",
-                  "minimum": 0,
-                  "maximum": 1,
-                  "description": "Minimum score required for funds to release."
-                }
-              }
-            },
-            "human_verified_check": {
-              "type": "object",
-              "description": "For condition_type: human_verified. Approval gate.",
-              "properties": {
-                "approver_agent_id": {
-                  "type": "string",
-                  "description": "Agent or human identity responsible for verification."
-                },
-                "approval_timeout_ms": {
-                  "type": "integer",
-                  "description": "Time allowed for approval before auto-resolution triggers."
-                },
-                "timeout_resolution": {
-                  "type": "string",
-                  "enum": ["release", "rollback"],
-                  "description": "What happens if approval times out."
-                }
-              }
-            }
-          }
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+",
+          "description": "Required capability version (semver)."
         },
-        "volume_discount": {
+        "description": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Human/LLM-readable task description."
+        },
+        "input_spec": {
+          "$ref": "#/$defs/IOSpec"
+        },
+        "output_spec": {
+          "$ref": "#/$defs/IOSpec"
+        },
+        "constraints": {
           "type": "object",
-          "description": "Optional volume-linked pricing adjustment.",
-          "properties": {
-            "threshold_executions": {
-              "type": "integer",
-              "description": "Number of executions above which discount applies."
-            },
-            "discounted_rate": {
-              "type": "number",
-              "description": "Rate applied once threshold is exceeded."
-            }
+          "description": "Additional task constraints."
+        }
+      },
+      "additionalProperties": false
+    },
+    "pricing": {
+      "type": "object",
+      "description": "Proposed price and conditions. All amounts in integer minor units.",
+      "required": ["amount_minor_units", "currency", "model", "per"],
+      "properties": {
+        "amount_minor_units": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Base price in minor currency units (e.g., cents for USD)."
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3,6}$",
+          "description": "ISO 4217 currency code or crypto symbol (e.g., USD, USDC)."
+        },
+        "model": {
+          "type": "string",
+          "enum": ["fixed", "dynamic", "auction", "outcome_based"],
+          "description": "Pricing model."
+        },
+        "per": {
+          "type": "string",
+          "enum": ["request", "token", "second", "output_unit"],
+          "description": "Price unit."
+        },
+        "conditions": {
+          "type": "array",
+          "description": "Conditional pricing adjustments.",
+          "items": {
+            "$ref": "#/$defs/PricingCondition"
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
-    "sla_declaration": {
+    "sla": {
       "type": "object",
-      "description": "What both parties declare success looks like. Agreed before execution. No ambiguity at settlement.",
-      "required": ["max_latency_ms", "quality_threshold"],
+      "description": "Performance guarantees declared before execution.",
+      "required": ["max_latency_ms"],
       "properties": {
         "max_latency_ms": {
           "type": "integer",
-          "description": "Maximum acceptable latency for this execution."
+          "minimum": 1,
+          "description": "Maximum acceptable latency in milliseconds."
         },
-        "quality_threshold": {
-          "type": "number",
+        "min_quality_score_bps": {
+          "type": "integer",
           "minimum": 0,
-          "maximum": 1,
-          "description": "Minimum quality score for acceptance."
+          "maximum": 10000,
+          "description": "Minimum quality threshold in basis points (0-10000)."
         },
-        "retry_allowed": {
-          "type": "boolean",
-          "description": "Whether the executing agent may retry on failure before settlement resolves."
+        "availability_bps": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000,
+          "description": "Required availability in basis points (0-10000)."
         },
         "max_retries": {
           "type": "integer",
-          "minimum": 0
-        },
-        "partial_completion_policy": {
-          "type": "string",
-          "enum": ["pro_rata", "full_release", "full_rollback"],
-          "description": "What happens if execution completes partially."
+          "minimum": 0,
+          "description": "Maximum acceptable retries."
         }
-      }
-    },
-    "dispute_resolution": {
-      "type": "object",
-      "description": "Deterministic arbitration rules. Defined upfront. No support tickets. No humans in the loop unless declared.",
-      "properties": {
-        "arbitration_mode": {
-          "type": "string",
-          "enum": ["automatic", "xap_arbitrator", "human_arbitrator"],
-          "description": "How disputes are resolved if condition verification is ambiguous."
-        },
-        "resolution_sequence": {
-          "type": "array",
-          "description": "Ordered list of resolution steps tried in sequence.",
-          "items": {
-            "type": "object",
-            "properties": {
-              "step": { "type": "string" },
-              "timeout_ms": { "type": "integer" },
-              "outcome_on_timeout": {
-                "type": "string",
-                "enum": ["release", "rollback", "escalate"]
-              }
-            }
-          }
-        }
-      }
-    },
-    "negotiation_history": {
-      "type": "array",
-      "description": "Full history of offers and counters. Append-only. Every state transition recorded.",
-      "items": {
-        "type": "object",
-        "required": ["state", "proposed_by", "timestamp", "signature"],
-        "properties": {
-          "state": {
-            "type": "string",
-            "enum": ["OFFER", "COUNTER", "ACCEPT", "REJECT"]
-          },
-          "proposed_by": {
-            "type": "string",
-            "description": "agent_id of the party making this proposal."
-          },
-          "offered_rate": { "type": "number" },
-          "note": {
-            "type": "string",
-            "description": "Optional machine-readable context for this state change."
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "signature": {
-            "type": "string",
-            "description": "Ed25519 signature by the proposing agent over this history entry."
-          }
-        }
-      }
-    },
-    "created_at": {
-      "type": "string",
-      "format": "date-time",
-      "description": "Timestamp of negotiation initiation."
+      },
+      "additionalProperties": false
     },
     "expires_at": {
       "type": "string",
       "format": "date-time",
-      "description": "Hard expiry of this negotiation. Every offer is time-bound. No open-ended negotiations."
+      "description": "When this offer/counter expires. Must be in the future at creation time."
     },
-    "accepted_at": {
+    "previous_state_hash": {
       "type": "string",
-      "format": "date-time",
-      "description": "Timestamp of ACCEPT state. Present only when state is ACCEPT."
+      "pattern": "^sha256:[a-f0-9]{64}$",
+      "description": "SHA-256 hash of the previous message in this negotiation chain. Absent for initial OFFER."
     },
-    "settlement_intent_id": {
+    "parent_negotiation_id": {
       "type": "string",
-      "description": "ID of the SettlementIntent created on ACCEPT. Links negotiation to settlement."
+      "pattern": "^neg_[a-f0-9]{8}$",
+      "description": "For renegotiation: references the original negotiation."
     },
-    "final_signature_initiator": {
-      "type": "string",
-      "description": "Ed25519 signature by initiator over the final accepted contract. Required before SettlementIntent is created."
-    },
-    "final_signature_counterparty": {
-      "type": "string",
-      "description": "Ed25519 signature by counterparty over the final accepted contract. Required before SettlementIntent is created."
-    }
-  },
-  "examples": [
-    {
-      "xap_version": "0.1",
-      "negotiation_id": "neg_Xm7KpQrTvWnJhLsYdBfCeGaUiOzKw9P",
-      "state": "ACCEPT",
-      "initiator_agent_id": "xap_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6",
-      "counterparty_agent_id": "xap_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
-      "capability_id": "enrich_company_profile",
-      "offer": {
-        "offered_rate": 0.07,
-        "settlement_unit": "USD",
-        "payment_condition": {
-          "condition_type": "probabilistic",
-          "description": "Release payment when confidence_score in output is >= 0.90",
-          "probabilistic_check": {
-            "score_field": "confidence_score",
-            "minimum_score": 0.90
-          }
+    "identity_snapshot": {
+      "type": "object",
+      "description": "Snapshot of counterparty's AgentIdentity at offer time for audit.",
+      "required": ["agent_id", "snapshot_at"],
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "description": "Counterparty's agent_id at time of offer."
+        },
+        "reputation_snapshot": {
+          "type": "object",
+          "description": "Counterparty's reputation at time of offer."
+        },
+        "capabilities_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 hash of counterparty's capabilities at time of offer."
+        },
+        "snapshot_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When snapshot was taken."
         }
       },
-      "sla_declaration": {
-        "max_latency_ms": 1500,
-        "quality_threshold": 0.90,
-        "retry_allowed": true,
-        "max_retries": 2,
-        "partial_completion_policy": "full_rollback"
-      },
-      "dispute_resolution": {
-        "arbitration_mode": "automatic",
-        "resolution_sequence": [
-          {
-            "step": "re_verify_condition",
-            "timeout_ms": 5000,
-            "outcome_on_timeout": "rollback"
-          }
-        ]
-      },
-      "created_at": "2026-03-03T10:00:00Z",
-      "expires_at": "2026-03-03T10:05:00Z",
-      "accepted_at": "2026-03-03T10:00:47Z"
+      "additionalProperties": false
+    },
+    "xap_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+",
+      "description": "Protocol version (semver)."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this message was created."
+    },
+    "signature": {
+      "type": "string",
+      "description": "Ed25519 signature of the entire object by from_agent."
     }
-  ]
+  },
+  "additionalProperties": false,
+  "if": {
+    "not": {
+      "properties": {
+        "state": { "const": "OFFER" }
+      },
+      "required": ["state"]
+    }
+  },
+  "then": {
+    "required": ["previous_state_hash"]
+  },
+  "$defs": {
+    "IOSpec": {
+      "type": "object",
+      "description": "Input or output format specification.",
+      "required": ["format"],
+      "properties": {
+        "format": {
+          "type": "string",
+          "enum": ["plaintext", "json", "markdown", "binary", "image", "audio", "custom"],
+          "description": "Data format."
+        },
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum token count."
+        },
+        "schema_ref": {
+          "type": "string",
+          "format": "uri",
+          "description": "Reference to a JSON schema for structured input/output."
+        },
+        "content_type": {
+          "type": "string",
+          "description": "MIME type for binary/custom formats."
+        }
+      },
+      "additionalProperties": false
+    },
+    "PricingCondition": {
+      "type": "object",
+      "description": "Conditional pricing adjustment based on a metric.",
+      "required": ["metric", "operator", "threshold", "modifier_bps"],
+      "properties": {
+        "metric": {
+          "type": "string",
+          "description": "What is measured (e.g., latency_ms, quality_score, token_count)."
+        },
+        "operator": {
+          "type": "string",
+          "enum": ["lte", "gte", "eq", "lt", "gt"],
+          "description": "Comparison operator."
+        },
+        "threshold": {
+          "type": "integer",
+          "description": "The threshold value."
+        },
+        "modifier_bps": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000,
+          "description": "Price modifier in basis points (10000 = full price, 5000 = 50%)."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
 }

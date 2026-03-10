@@ -4,46 +4,47 @@ from xap import ExecutionReceipt, NegotiationContract, SettlementIntent, generat
 from xap.settlement import PLATFORM_PUBLIC_KEY
 
 
-def _offer(rate=3.5):
+def _task():
     return {
-        "offered_rate": rate,
-        "settlement_unit": "USD",
-        "payment_condition": {
-            "condition_type": "probabilistic",
-            "description": "quality >= 0.8",
-            "probabilistic_check": {"score_field": "quality_score", "minimum_score": 0.8},
-        },
+        "type": "data_enrichment",
+        "input_spec": {"format": "json"},
+        "output_spec": {"format": "json"},
+    }
+
+
+def _pricing(amount=500):
+    return {
+        "amount_minor_units": amount,
+        "currency": "USD",
+        "model": "fixed",
+        "per": "request",
     }
 
 
 def _sla():
     return {
         "max_latency_ms": 2000,
-        "quality_threshold": 0.8,
-        "retry_allowed": True,
-        "max_retries": 1,
-        "partial_completion_policy": "pro_rata",
+        "min_quality_score_bps": 8000,
     }
 
 
 def _released_settlement():
-    initiator_priv, _ = generate_keypair()
-    counterparty_priv, _ = generate_keypair()
+    priv_a, _ = generate_keypair()
+    priv_b, _ = generate_keypair()
 
     negotiation = NegotiationContract.create(
-        initiator_id="xap_initiator_123",
-        counterparty_id="xap_counterparty_123",
-        capability_id="cap_data_enrich",
-        offer=_offer(),
+        from_agent="agent_aaaa1111",
+        to_agent="agent_bbbb2222",
+        task=_task(),
+        pricing=_pricing(),
         sla=_sla(),
         expires_in_seconds=300,
     )
-    negotiation.accept("xap_initiator_123", initiator_priv)
-    negotiation.accept("xap_counterparty_123", counterparty_priv)
+    negotiation.accept("agent_bbbb2222", priv_b)
 
     settlement = SettlementIntent.create(negotiation, idempotency_key=f"idemp-r1-{uuid.uuid4()}")
     settlement.start_execution()
-    settlement.submit_result(output={"completion_percentage": 100}, quality_score=0.9, latency_ms=800, agent_private_key=counterparty_priv)
+    settlement.submit_result(output={"completion_percentage": 100}, quality_score=0.9, latency_ms=800, agent_private_key=priv_b)
     settlement.verify_condition()
     settlement.release()
     return settlement

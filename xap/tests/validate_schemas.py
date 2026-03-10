@@ -14,6 +14,12 @@ SCHEMA_EXAMPLE_MAP = {
         "agent-identity-simple.json",
         "agent-identity-complex.json",
     ],
+    "negotiation-contract.json": [
+        "negotiation-simple-offer.json",
+        "negotiation-simple-accept.json",
+        "negotiation-complex-offer.json",
+        "negotiation-complex-counter.json",
+    ],
 }
 
 

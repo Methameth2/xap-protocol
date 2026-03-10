@@ -3,43 +3,44 @@ import pytest
 from xap import XAPSplitError, XAPStateError, NegotiationContract, SettlementIntent, generate_keypair
 
 
-def _offer(rate=3.5):
+def _task():
     return {
-        "offered_rate": rate,
-        "settlement_unit": "USD",
-        "payment_condition": {
-            "condition_type": "probabilistic",
-            "description": "quality >= 0.8",
-            "probabilistic_check": {"score_field": "quality_score", "minimum_score": 0.8},
-        },
+        "type": "data_enrichment",
+        "input_spec": {"format": "json"},
+        "output_spec": {"format": "json"},
+    }
+
+
+def _pricing(amount=500):
+    return {
+        "amount_minor_units": amount,
+        "currency": "USD",
+        "model": "fixed",
+        "per": "request",
     }
 
 
 def _sla():
     return {
         "max_latency_ms": 2000,
-        "quality_threshold": 0.8,
-        "retry_allowed": True,
-        "max_retries": 1,
-        "partial_completion_policy": "pro_rata",
+        "min_quality_score_bps": 8000,
     }
 
 
 def _accepted_negotiation():
-    initiator_priv, _ = generate_keypair()
-    counterparty_priv, _ = generate_keypair()
+    priv_a, _ = generate_keypair()
+    priv_b, _ = generate_keypair()
 
     contract = NegotiationContract.create(
-        initiator_id="xap_initiator_123",
-        counterparty_id="xap_counterparty_123",
-        capability_id="cap_data_enrich",
-        offer=_offer(),
+        from_agent="agent_aaaa1111",
+        to_agent="agent_bbbb2222",
+        task=_task(),
+        pricing=_pricing(),
         sla=_sla(),
         expires_in_seconds=300,
     )
-    contract.counter(_offer(rate=3.1), proposed_by="xap_counterparty_123")
-    contract.accept("xap_initiator_123", initiator_priv)
-    contract.accept("xap_counterparty_123", counterparty_priv)
+    contract.counter(_pricing(amount=400), proposed_by="agent_bbbb2222", private_key=priv_b)
+    contract.accept("agent_aaaa1111", priv_a)
     return contract
 
 
@@ -47,8 +48,8 @@ def test_settlement_idempotency_and_happy_path_release():
     payee_priv, _ = generate_keypair()
     negotiation = _accepted_negotiation()
 
-    intent_a = SettlementIntent.create(negotiation, idempotency_key="idemp-1")
-    intent_b = SettlementIntent.create(negotiation, idempotency_key="idemp-1")
+    intent_a = SettlementIntent.create(negotiation, idempotency_key="idemp-v2-1")
+    intent_b = SettlementIntent.create(negotiation, idempotency_key="idemp-v2-1")
     assert intent_a is intent_b
 
     intent_a.start_execution()
@@ -62,7 +63,7 @@ def test_settlement_idempotency_and_happy_path_release():
 
 def test_settlement_invalid_state_transition_raises_state_error():
     negotiation = _accepted_negotiation()
-    intent = SettlementIntent.create(negotiation, idempotency_key="idemp-2")
+    intent = SettlementIntent.create(negotiation, idempotency_key="idemp-v2-2")
 
     with pytest.raises(XAPStateError):
         intent.release()
@@ -71,19 +72,19 @@ def test_settlement_invalid_state_transition_raises_state_error():
 def test_settlement_invalid_split_rules_raise_split_error():
     payee_priv, _ = generate_keypair()
     negotiation = _accepted_negotiation()
-    intent = SettlementIntent.create(negotiation, idempotency_key="idemp-3")
+    intent = SettlementIntent.create(negotiation, idempotency_key="idemp-v2-3")
 
     payload = intent.to_dict()
     payload["split_rules"] = [
         {
-            "recipient_agent_id": "xap_counterparty_123",
+            "recipient_agent_id": "agent_bbbb2222",
             "share_type": "percentage",
             "percentage": 70,
             "role": "subagent",
             "partial_completion_eligible": True,
         },
         {
-            "recipient_agent_id": "xap_platform_123",
+            "recipient_agent_id": "agent_cccc3333",
             "share_type": "percentage",
             "percentage": 20,
             "role": "platform",
@@ -135,18 +136,17 @@ def test_end_to_end_register_negotiate_lock_execute_verify_release_receipt():
     counterparty.sign(counterparty_priv)
 
     negotiation = NegotiationContract.create(
-        initiator_id=initiator.agent_id,
-        counterparty_id=counterparty.agent_id,
-        capability_id="cap_data_enrich",
-        offer=_offer(rate=3.5),
+        from_agent=initiator.agent_id,
+        to_agent=counterparty.agent_id,
+        task=_task(),
+        pricing=_pricing(amount=350),
         sla=_sla(),
         expires_in_seconds=300,
     )
-    negotiation.counter(_offer(rate=3.2), proposed_by=counterparty.agent_id)
+    negotiation.counter(_pricing(amount=300), proposed_by=counterparty.agent_id, private_key=counterparty_priv)
     negotiation.accept(initiator.agent_id, initiator_priv)
-    negotiation.accept(counterparty.agent_id, counterparty_priv)
 
-    settlement = SettlementIntent.create(negotiation, idempotency_key="idemp-e2e")
+    settlement = SettlementIntent.create(negotiation, idempotency_key="idemp-e2e-v2")
     settlement.start_execution()
     settlement.submit_result(
         output={"completion_percentage": 100, "result": {"ok": True}},
