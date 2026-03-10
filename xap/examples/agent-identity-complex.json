@@ -1,0 +1,82 @@
+{
+  "agent_id": "agent_2d8e5f1a",
+  "org_id": "org_a1b2c3d4",
+  "team_id": "team_e5f6a7b8",
+  "public_key": "ed25519:eHl6MTIzNDU2Nzg5MGFiY2RlZmdoaWprbG1ub3BxcnM=",
+  "key_version": 3,
+  "key_status": "active",
+  "previous_key_hash": "sha256:a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+  "recovery_key_hash": "sha256:f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3b2a1f6e5d4c3b2a1f6e5",
+  "capabilities": [
+    {
+      "name": "text_summarization",
+      "version": "2.1.0",
+      "description": "High-quality summarization with citation extraction",
+      "pricing": {
+        "model": "fixed",
+        "amount_minor_units": 500,
+        "currency": "USD",
+        "per": "request",
+        "conditions": [
+          { "metric": "latency_ms", "threshold": 2000, "modifier_bps": 10000 },
+          { "metric": "latency_ms", "threshold": 5000, "modifier_bps": 7000 }
+        ]
+      },
+      "sla": {
+        "max_latency_ms": 5000,
+        "availability_bps": 9950,
+        "min_quality_score_bps": 9000
+      },
+      "input_spec": {
+        "format": "plaintext",
+        "max_tokens": 10000
+      },
+      "output_spec": {
+        "format": "plaintext",
+        "max_tokens": 500
+      }
+    },
+    {
+      "name": "sentiment_analysis",
+      "version": "1.0.0",
+      "description": "Classifies text sentiment with confidence scores",
+      "pricing": {
+        "model": "fixed",
+        "amount_minor_units": 100,
+        "currency": "USD",
+        "per": "request"
+      },
+      "sla": {
+        "max_latency_ms": 1000,
+        "availability_bps": 9990
+      }
+    }
+  ],
+  "reputation": {
+    "total_settlements": 14823,
+    "success_rate_bps": 9700,
+    "avg_quality_bps": 9100,
+    "disputes": 12,
+    "dispute_resolution_rate_bps": 10000,
+    "last_updated": "2026-03-09T11:45:00Z"
+  },
+  "external_identities": [
+    {
+      "standard": "did",
+      "identifier": "did:web:agentralabs.tech:agents:2d8e5f1a"
+    }
+  ],
+  "risk_profile": {
+    "risk_tier": "low",
+    "compliance_flags": ["soc2_type2", "gdpr_compliant"],
+    "jurisdiction": "US"
+  },
+  "xap_version": "0.2.0",
+  "status": "active",
+  "registered_at": "2026-01-15T08:30:00Z",
+  "last_active_at": "2026-03-09T11:45:00Z",
+  "portable_proof": "ed25519:cG9ydGFibGVfcHJvb2ZfZXhhbXBsZQ==",
+  "export_timestamp": "2026-03-01T00:00:00Z",
+  "source_implementation": "agentra_rail",
+  "signature": "ed25519:c2lnbmF0dXJlX2NvbXBsZXhfZXhhbXBsZQ=="
+}

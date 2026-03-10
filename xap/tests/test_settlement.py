@@ -109,15 +109,13 @@ def test_end_to_end_register_negotiate_lock_execute_verify_release_receipt():
     initiator = AgentIdentity.create(
         capabilities=[
             {
-                "capability_id": "cap_orchestrate",
-                "name": "Orchestrate",
-                "input_schema": {"type": "object"},
-                "output_schema": {"type": "object"},
+                "name": "orchestrate",
+                "version": "1.0.0",
+                "pricing": {"model": "fixed", "amount_minor_units": 500, "currency": "USD", "per": "request"},
+                "sla": {"max_latency_ms": 2000, "availability_bps": 9900},
             }
         ],
-        pricing={"model": "fixed", "base_rate": 5, "settlement_unit": "USD"},
-        sla={"max_latency_ms": 2000, "quality_threshold": 0.8},
-        risk_profile={"max_transaction_value": 1000},
+        risk_profile={"risk_tier": "low"},
         public_key=initiator_pub,
     )
     initiator.sign(initiator_priv)
@@ -125,15 +123,13 @@ def test_end_to_end_register_negotiate_lock_execute_verify_release_receipt():
     counterparty = AgentIdentity.create(
         capabilities=[
             {
-                "capability_id": "cap_data_enrich",
-                "name": "Data Enrichment",
-                "input_schema": {"type": "object"},
-                "output_schema": {"type": "object"},
+                "name": "data_enrichment",
+                "version": "1.0.0",
+                "pricing": {"model": "fixed", "amount_minor_units": 350, "currency": "USD", "per": "request"},
+                "sla": {"max_latency_ms": 1500, "availability_bps": 9950},
             }
         ],
-        pricing={"model": "fixed", "base_rate": 3.5, "settlement_unit": "USD"},
-        sla={"max_latency_ms": 1500, "quality_threshold": 0.85},
-        risk_profile={"max_transaction_value": 1000},
+        risk_profile={"risk_tier": "low"},
         public_key=counterparty_pub,
     )
     counterparty.sign(counterparty_priv)

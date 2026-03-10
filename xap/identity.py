@@ -1,12 +1,17 @@
-"""AgentIdentity implementation for XAP v0.1."""
+"""AgentIdentity implementation for XAP v0.2."""
 
 from __future__ import annotations
 
+import secrets
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
-from ._common import deep_copy, generate_prefixed_id, utc_now_iso, validate_against_schema
-from .crypto import canonical_json_hash, generate_keypair, sign_payload, verify_payload
+from ._common import deep_copy, utc_now_iso, validate_against_schema
+from .crypto import generate_keypair, sign_payload, verify_payload
+
+
+def _generate_agent_id() -> str:
+    return f"agent_{secrets.token_hex(4)}"
 
 
 @dataclass
@@ -26,37 +31,43 @@ class AgentIdentity:
     def create(
         cls,
         capabilities: list[dict[str, Any]],
-        pricing: dict[str, Any],
-        sla: dict[str, Any],
-        risk_profile: dict[str, Any] | None = None,
         public_key: str | None = None,
-        display_name: str | None = None,
+        org_id: str | None = None,
+        team_id: str | None = None,
+        risk_profile: dict[str, Any] | None = None,
+        external_identities: list[dict[str, Any]] | None = None,
     ) -> "AgentIdentity":
         if public_key is None:
             _, public_key = generate_keypair()
 
+        now = utc_now_iso()
         data: dict[str, Any] = {
-            "xap_version": "0.1",
-            "agent_id": generate_prefixed_id("xap_"),
+            "agent_id": _generate_agent_id(),
             "public_key": public_key,
-            "key_algorithm": "Ed25519",
-            "registered_at": utc_now_iso(),
+            "key_version": 1,
+            "key_status": "active",
             "capabilities": capabilities,
-            "pricing": pricing,
-            "sla": sla,
             "reputation": {
-                "total_executions": 0,
-                "successful_settlements": 0,
-                "disputed_settlements": 0,
-                "auto_resolved_disputes": 0,
-                "reputation_score": 1.0,
-                "capability_hash": canonical_json_hash(capabilities),
+                "total_settlements": 0,
+                "success_rate_bps": 0,
+                "disputes": 0,
+                "dispute_resolution_rate_bps": 0,
+                "last_updated": now,
             },
+            "xap_version": "0.2.0",
+            "status": "active",
+            "registered_at": now,
+            "last_active_at": now,
+            "signature": "",
         }
+        if org_id is not None:
+            data["org_id"] = org_id
+        if team_id is not None:
+            data["team_id"] = team_id
         if risk_profile is not None:
             data["risk_profile"] = risk_profile
-        if display_name is not None:
-            data["display_name"] = display_name
+        if external_identities is not None:
+            data["external_identities"] = external_identities
 
         validate_against_schema(cls.SCHEMA, data)
         obj = cls(data)
@@ -64,20 +75,20 @@ class AgentIdentity:
         return obj
 
     def sign(self, private_key: str) -> str:
-        signature = sign_payload(self._data, private_key, exclude_fields=["identity_signature"])
-        self._data["identity_signature"] = signature
+        signature = sign_payload(self._data, private_key, exclude_fields=["signature"])
+        self._data["signature"] = signature
         validate_against_schema(self.SCHEMA, self._data)
         return signature
 
     def verify(self, public_key: str) -> bool:
-        signature = self._data.get("identity_signature")
+        signature = self._data.get("signature")
         if not signature:
             return False
         return verify_payload(
             self._data,
             signature,
             public_key,
-            exclude_fields=["identity_signature"],
+            exclude_fields=["signature"],
         )
 
     def to_dict(self) -> dict[str, Any]:

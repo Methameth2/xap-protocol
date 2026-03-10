@@ -1,315 +1,329 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://xap.agentralabs.tech/schemas/v0.1/agent-identity.json",
+  "$id": "https://xap.agentralabs.tech/schemas/agent-identity.json",
   "title": "AgentIdentity",
-  "description": "XAP v0.1 — The permanent economic identity and capability passport for an autonomous agent. Cryptographically anchored. Append-only reputation.",
+  "description": "XAP v0.2 — The permanent economic identity and capability passport for an autonomous agent. Cryptographically anchored. Append-only reputation. Integer minor units for all monetary values. Basis points for all rates.",
   "type": "object",
   "required": [
-    "xap_version",
     "agent_id",
     "public_key",
-    "key_algorithm",
-    "registered_at",
+    "key_version",
+    "key_status",
     "capabilities",
-    "pricing",
-    "sla",
-    "reputation"
+    "reputation",
+    "xap_version",
+    "status",
+    "registered_at",
+    "last_active_at",
+    "signature"
   ],
+  "dependentRequired": {
+    "team_id": ["org_id"]
+  },
   "properties": {
-    "xap_version": {
-      "type": "string",
-      "const": "0.1",
-      "description": "XAP protocol version this identity was registered under."
-    },
     "agent_id": {
       "type": "string",
-      "pattern": "^xap_[a-zA-Z0-9]{32}$",
+      "pattern": "^agent_[a-f0-9]{8}$",
       "description": "Globally unique agent identifier. Assigned at registration. Immutable."
+    },
+    "org_id": {
+      "type": "string",
+      "pattern": "^org_[a-f0-9]{8}$",
+      "description": "Organization identifier. If present, agent belongs to an org. Policies cascade: org → team → agent."
+    },
+    "team_id": {
+      "type": "string",
+      "pattern": "^team_[a-f0-9]{8}$",
+      "description": "Team identifier. If present, org_id must also be present. Agent belongs to a team within the org."
     },
     "public_key": {
       "type": "string",
-      "description": "Ed25519 public key (base64url encoded). Used to verify all signed receipts and trust grants from this agent."
+      "description": "Ed25519 public key (base64 encoded). Current signing key for this agent."
     },
-    "key_algorithm": {
-      "type": "string",
-      "enum": ["Ed25519"],
-      "description": "Signing algorithm. XAP v0.1 requires Ed25519."
+    "key_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Monotonically increasing key version. Starts at 1."
     },
-    "registered_at": {
+    "key_status": {
       "type": "string",
-      "format": "date-time",
-      "description": "ISO 8601 UTC timestamp of first registration. Immutable."
+      "enum": ["active", "rotated", "revoked"],
+      "description": "Current key state."
     },
-    "display_name": {
+    "previous_key_hash": {
       "type": "string",
-      "maxLength": 128,
-      "description": "Human-readable agent name. Optional. Does not affect identity."
+      "description": "SHA-256 hex hash of previous public key. Present after key rotation."
+    },
+    "recovery_key_hash": {
+      "type": "string",
+      "description": "SHA-256 hex hash of recovery key. For compromise scenarios."
     },
     "capabilities": {
       "type": "array",
-      "description": "Declared capabilities. Machine-readable. An agent reading this should be able to determine hirability without human involvement.",
+      "description": "Declared capabilities with per-capability pricing and SLA. Machine-readable.",
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["capability_id", "name", "input_schema", "output_schema"],
+        "required": ["name", "version", "pricing", "sla"],
         "properties": {
-          "capability_id": {
-            "type": "string",
-            "description": "Unique identifier for this capability within the agent."
-          },
           "name": {
             "type": "string",
-            "description": "Short capability name. Machine and human readable."
+            "description": "Capability name (e.g., 'text_summarization')."
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+$",
+            "description": "Capability version in semver format."
           },
           "description": {
             "type": "string",
-            "description": "Natural language description of what this capability does."
+            "maxLength": 500,
+            "description": "Human/LLM-readable description of what this capability does."
           },
-          "input_schema": {
+          "pricing": {
             "type": "object",
-            "description": "JSON Schema defining valid inputs for this capability."
-          },
-          "output_schema": {
-            "type": "object",
-            "description": "JSON Schema defining the structure of outputs from this capability."
-          },
-          "tags": {
-            "type": "array",
-            "items": { "type": "string" },
-            "description": "Categorical tags for capability discovery. e.g. ['data-enrichment', 'nlp', 'inference']"
-          }
-        }
-      }
-    },
-    "pricing": {
-      "type": "object",
-      "description": "Pricing structure for this agent's capabilities.",
-      "required": ["model"],
-      "properties": {
-        "model": {
-          "type": "string",
-          "enum": ["fixed", "dynamic", "auction", "outcome_based"],
-          "description": "Pricing model. Agents have different economic personalities."
-        },
-        "base_rate": {
-          "type": "number",
-          "minimum": 0,
-          "description": "Base rate per execution in settlement units."
-        },
-        "settlement_unit": {
-          "type": "string",
-          "description": "Unit of account for settlement. e.g. 'USD', 'USDC', 'XAP_CREDIT'"
-        },
-        "conditional_rates": {
-          "type": "array",
-          "description": "Conditional pricing tiers. e.g. Pay X if completed in 2s, Y if 5s, Z if 10s.",
-          "items": {
-            "type": "object",
-            "required": ["condition", "rate"],
+            "required": ["model", "amount_minor_units", "currency", "per"],
+            "description": "How this capability is priced. All amounts in integer minor units.",
             "properties": {
-              "condition": {
+              "model": {
                 "type": "string",
-                "description": "Natural language condition description."
+                "enum": ["fixed", "dynamic", "auction", "outcome_based"],
+                "description": "Pricing model."
               },
-              "condition_type": {
-                "type": "string",
-                "enum": ["latency", "quality", "volume", "time_of_day", "custom"]
-              },
-              "condition_threshold": {
-                "type": "number",
-                "description": "Numeric threshold value for the condition."
-              },
-              "condition_operator": {
-                "type": "string",
-                "enum": ["lt", "lte", "gt", "gte", "eq"]
-              },
-              "rate": {
-                "type": "number",
+              "amount_minor_units": {
+                "type": "integer",
                 "minimum": 0,
-                "description": "Rate applied when condition is met."
+                "description": "Price in minor currency units (e.g., cents for USD). $5.00 = 500."
+              },
+              "currency": {
+                "type": "string",
+                "pattern": "^[A-Z]{3,10}$",
+                "description": "ISO 4217 code or token identifier (e.g., 'USD', 'USDC', 'XAP_CREDIT')."
+              },
+              "per": {
+                "type": "string",
+                "enum": ["request", "token", "second", "output_unit"],
+                "description": "What the price is per."
+              },
+              "conditions": {
+                "type": "array",
+                "description": "Conditional pricing rules.",
+                "items": {
+                  "type": "object",
+                  "required": ["metric", "threshold", "modifier_bps"],
+                  "properties": {
+                    "metric": {
+                      "type": "string",
+                      "description": "What is measured (e.g., 'latency_ms')."
+                    },
+                    "threshold": {
+                      "type": "integer",
+                      "description": "The threshold value."
+                    },
+                    "modifier_bps": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 10000,
+                      "description": "Price modifier in basis points (10000 = full price)."
+                    }
+                  }
+                }
               }
             }
-          }
-        }
-      }
-    },
-    "sla": {
-      "type": "object",
-      "description": "Service level agreement declarations. Sets expectations before negotiation begins.",
-      "properties": {
-        "max_latency_ms": {
-          "type": "integer",
-          "description": "Maximum response latency in milliseconds."
-        },
-        "uptime_guarantee_pct": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 100,
-          "description": "Declared uptime percentage."
-        },
-        "quality_threshold": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1,
-          "description": "Minimum quality score (0-1) for output acceptance."
-        },
-        "retry_policy": {
-          "type": "object",
-          "properties": {
-            "max_retries": { "type": "integer", "minimum": 0 },
-            "backoff_ms": { "type": "integer", "minimum": 0 }
+          },
+          "sla": {
+            "type": "object",
+            "required": ["max_latency_ms", "availability_bps"],
+            "description": "Performance guarantees for this capability.",
+            "properties": {
+              "max_latency_ms": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Maximum response time in milliseconds."
+              },
+              "availability_bps": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000,
+                "description": "Uptime guarantee in basis points (9950 = 99.50%)."
+              },
+              "min_quality_score_bps": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000,
+                "description": "Minimum quality threshold in basis points (8500 = 85.00%)."
+              }
+            }
+          },
+          "input_spec": {
+            "type": "object",
+            "description": "Expected input format."
+          },
+          "output_spec": {
+            "type": "object",
+            "description": "Expected output format."
           }
         }
       }
     },
     "reputation": {
       "type": "object",
-      "description": "Append-only execution history and reputation score. Never deleted. Every outcome permanently attached.",
+      "description": "Append-only performance history. Never deleted. Every outcome permanently attached.",
+      "required": ["total_settlements", "success_rate_bps", "disputes", "dispute_resolution_rate_bps", "last_updated"],
       "properties": {
-        "total_executions": {
+        "total_settlements": {
           "type": "integer",
           "minimum": 0,
-          "description": "Total number of executions completed under XAP."
+          "description": "Lifetime settled transactions."
         },
-        "successful_settlements": {
+        "success_rate_bps": {
           "type": "integer",
           "minimum": 0,
-          "description": "Number of settlements that released funds successfully."
+          "maximum": 10000,
+          "description": "Success rate in basis points (9700 = 97.00%)."
         },
-        "disputed_settlements": {
+        "avg_quality_bps": {
           "type": "integer",
           "minimum": 0,
-          "description": "Number of settlements that entered dispute."
+          "maximum": 10000,
+          "description": "Average quality score in basis points."
         },
-        "auto_resolved_disputes": {
+        "disputes": {
           "type": "integer",
           "minimum": 0,
-          "description": "Disputes resolved by deterministic arbitration without human involvement."
+          "description": "Total disputes filed."
         },
-        "reputation_score": {
-          "type": "number",
+        "dispute_resolution_rate_bps": {
+          "type": "integer",
           "minimum": 0,
-          "maximum": 1,
-          "description": "Computed reputation score (0-1). Derived from execution history. Read-only."
+          "maximum": 10000,
+          "description": "Disputes resolved successfully in basis points."
         },
-        "first_execution_at": {
+        "last_updated": {
           "type": "string",
           "format": "date-time",
-          "description": "Timestamp of first recorded execution."
-        },
-        "last_execution_at": {
-          "type": "string",
-          "format": "date-time",
-          "description": "Timestamp of most recent execution."
-        },
-        "capability_hash": {
-          "type": "string",
-          "description": "SHA-256 hash of the capabilities array at last update. Detects capability drift."
+          "description": "Last reputation update timestamp."
+        }
+      }
+    },
+    "external_identities": {
+      "type": "array",
+      "description": "Bridges to W3C VC, ERC-8004, DIDs. Extensibility for external identity standards.",
+      "items": {
+        "type": "object",
+        "required": ["standard", "identifier"],
+        "properties": {
+          "standard": {
+            "type": "string",
+            "enum": ["w3c_vc", "erc_8004", "did", "other"],
+            "description": "Identity standard."
+          },
+          "identifier": {
+            "type": "string",
+            "description": "The external identifier."
+          },
+          "proof": {
+            "type": "string",
+            "description": "Attestation linking XAP identity to external."
+          }
         }
       }
     },
     "risk_profile": {
       "type": "object",
-      "description": "Risk declarations for downstream governance and spend control.",
+      "description": "Declared risk tier and compliance flags.",
       "properties": {
-        "max_transaction_value": {
-          "type": "number",
-          "description": "Maximum value this agent will accept in a single settlement."
+        "risk_tier": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "unrated"],
+          "description": "Declared risk level."
         },
-        "accepted_counterparty_min_reputation": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1,
-          "description": "Minimum reputation score this agent requires from counterparties."
+        "compliance_flags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Compliance certifications held."
         },
-        "requires_human_approval_above": {
-          "type": "number",
-          "description": "Transaction value threshold above which human approval is required."
+        "jurisdiction": {
+          "type": "string",
+          "pattern": "^[A-Z]{2}$",
+          "description": "Primary operating jurisdiction (ISO 3166-1 alpha-2)."
         }
       }
     },
-    "identity_signature": {
+    "xap_version": {
       "type": "string",
-      "description": "Ed25519 signature over the canonical JSON of this identity object (excluding this field). Signed by the agent's private key at registration."
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "XAP protocol version this identity conforms to."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "inactive", "suspended", "frozen"],
+      "description": "Current agent status."
+    },
+    "registered_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp of first registration. Immutable."
+    },
+    "last_active_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of last economic activity."
+    },
+    "portable_proof": {
+      "type": "string",
+      "description": "Ed25519 signed attestation for identity portability."
+    },
+    "export_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the identity was last exported."
+    },
+    "source_implementation": {
+      "type": "string",
+      "description": "Which XAP implementation this identity originated from."
+    },
+    "signature": {
+      "type": "string",
+      "description": "Ed25519 signature over the canonical JSON of this identity object (excluding this field). Self-signed identity attestation."
     }
   },
   "examples": [
     {
-      "xap_version": "0.1",
-      "agent_id": "xap_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
-      "public_key": "MCowBQYDK2VwAyEA...",
-      "key_algorithm": "Ed25519",
-      "registered_at": "2026-03-03T00:00:00Z",
-      "display_name": "DataEnrichmentAgent-v2",
+      "agent_id": "agent_7f3a9b2c",
+      "public_key": "ed25519:YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoxMjM0NTY=",
+      "key_version": 1,
+      "key_status": "active",
       "capabilities": [
         {
-          "capability_id": "enrich_company_profile",
-          "name": "Company Profile Enrichment",
-          "description": "Enriches a company name or domain with structured firmographic data.",
-          "input_schema": {
-            "type": "object",
-            "required": ["company_name"],
-            "properties": {
-              "company_name": { "type": "string" },
-              "domain": { "type": "string" }
-            }
+          "name": "text_summarization",
+          "version": "1.0.0",
+          "description": "Summarizes plaintext documents into concise outputs",
+          "pricing": {
+            "model": "fixed",
+            "amount_minor_units": 300,
+            "currency": "USD",
+            "per": "request"
           },
-          "output_schema": {
-            "type": "object",
-            "properties": {
-              "company_name": { "type": "string" },
-              "industry": { "type": "string" },
-              "employee_count": { "type": "integer" },
-              "founded_year": { "type": "integer" },
-              "confidence_score": { "type": "number" }
-            }
-          },
-          "tags": ["data-enrichment", "firmographic", "b2b"]
+          "sla": {
+            "max_latency_ms": 3000,
+            "availability_bps": 9900,
+            "min_quality_score_bps": 8500
+          }
         }
       ],
-      "pricing": {
-        "model": "outcome_based",
-        "base_rate": 0.05,
-        "settlement_unit": "USD",
-        "conditional_rates": [
-          {
-            "condition": "Confidence score above 0.95",
-            "condition_type": "quality",
-            "condition_threshold": 0.95,
-            "condition_operator": "gte",
-            "rate": 0.08
-          },
-          {
-            "condition": "Response within 500ms",
-            "condition_type": "latency",
-            "condition_threshold": 500,
-            "condition_operator": "lt",
-            "rate": 0.06
-          }
-        ]
-      },
-      "sla": {
-        "max_latency_ms": 2000,
-        "uptime_guarantee_pct": 99.5,
-        "quality_threshold": 0.85,
-        "retry_policy": {
-          "max_retries": 3,
-          "backoff_ms": 200
-        }
-      },
       "reputation": {
-        "total_executions": 0,
-        "successful_settlements": 0,
-        "disputed_settlements": 0,
-        "auto_resolved_disputes": 0,
-        "reputation_score": 0.0,
-        "capability_hash": "sha256:e3b0c44298fc1c149afb..."
+        "total_settlements": 0,
+        "success_rate_bps": 0,
+        "disputes": 0,
+        "dispute_resolution_rate_bps": 0,
+        "last_updated": "2026-03-09T12:00:00Z"
       },
-      "risk_profile": {
-        "max_transaction_value": 100.00,
-        "accepted_counterparty_min_reputation": 0.3,
-        "requires_human_approval_above": 50.00
-      }
+      "xap_version": "0.2.0",
+      "status": "active",
+      "registered_at": "2026-03-09T12:00:00Z",
+      "last_active_at": "2026-03-09T12:00:00Z",
+      "signature": "ed25519:c2lnbmF0dXJlX2V4YW1wbGVfYmFzZTY0X2VuY29kZWQ="
     }
   ]
 }
