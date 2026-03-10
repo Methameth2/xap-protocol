@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://acp.agentralabs.tech/schemas/v0.1/execution-receipt.json",
+  "$id": "https://xap.agentralabs.tech/schemas/v0.1/execution-receipt.json",
   "title": "ExecutionReceipt",
-  "description": "ACP v0.1 — The tamper-proof, cryptographically signed, permanently replayable record of every agent commerce event. Attached to both agents' identity histories forever. The audit primitive of ACP.",
+  "description": "XAP v0.1 — The tamper-proof, cryptographically signed, permanently replayable record of every agent commerce event. Attached to both agents' identity histories forever. The audit primitive of XAP.",
   "type": "object",
   "required": [
-    "acp_version",
+    "xap_version",
     "receipt_id",
     "receipt_type",
     "settlement_id",
@@ -19,7 +19,7 @@
     "receipt_signature"
   ],
   "properties": {
-    "acp_version": {
+    "xap_version": {
       "type": "string",
       "const": "0.1"
     },
@@ -291,18 +291,18 @@
     },
     "receipt_signature": {
       "type": "string",
-      "description": "Ed25519 signature by ACP Rail over the receipt_hash. Proof that this receipt was issued by an ACP-compliant settlement engine."
+      "description": "Ed25519 signature by XAP Rail over the receipt_hash. Proof that this receipt was issued by an XAP-compliant settlement engine."
     }
   },
   "examples": [
     {
-      "acp_version": "0.1",
+      "xap_version": "0.1",
       "receipt_id": "rcpt_Yn9MrStUvWxYzAaBbCcDdEeFfGgHhIiJj",
       "receipt_type": "SPLIT_CASCADE",
       "settlement_id": "stl_Zn8LqRsTuVwXyAzBcDeFgHiJkLmNoPqR",
       "negotiation_id": "neg_Xm7KpQrTvWnJhLsYdBfCeGaUiOzKw9P",
-      "payer_agent_id": "acp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6",
-      "payee_agent_id": "acp_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
+      "payer_agent_id": "xap_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6",
+      "payee_agent_id": "xap_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
       "final_state": {
         "state": "RELEASED",
         "resolved_at": "2026-03-03T10:01:12Z",
@@ -317,13 +317,13 @@
         "settlement_unit": "USD",
         "split_distributions": [
           {
-            "recipient_agent_id": "acp_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
+            "recipient_agent_id": "xap_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
             "amount": 0.0595,
             "role": "subagent",
             "distribution_timestamp": "2026-03-03T10:01:13Z"
           },
           {
-            "recipient_agent_id": "acp_PLATFORM000000000000000000000000",
+            "recipient_agent_id": "xap_PLATFORM000000000000000000000000",
             "amount": 0.0105,
             "role": "platform",
             "distribution_timestamp": "2026-03-03T10:01:13Z"

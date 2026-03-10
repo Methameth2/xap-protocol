@@ -1,4 +1,4 @@
-from acp import AgentIdentity, generate_keypair
+from xap import AgentIdentity, generate_keypair
 
 
 def _capabilities():

@@ -1,4 +1,4 @@
-"""SettlementIntent implementation for ACP v0.1."""
+"""SettlementIntent implementation for XAP v0.1."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from ._common import (
     validate_against_schema,
 )
 from .crypto import canonical_json_bytes, generate_keypair, sign_payload
-from .errors import ACPExpiredError, ACPSplitError, ACPStateError
+from .errors import XAPExpiredError, XAPSplitError, XAPStateError
 from .receipt import ExecutionReceipt
 
 _PLATFORM_PRIVATE_KEY, PLATFORM_PUBLIC_KEY = generate_keypair()
@@ -46,9 +46,9 @@ class SettlementIntent:
         negotiation_data = negotiation.to_dict() if hasattr(negotiation, "to_dict") else deep_copy(negotiation)
 
         if negotiation_data.get("state") != "ACCEPT":
-            raise ACPStateError("SettlementIntent can only be created from an ACCEPT negotiation")
+            raise XAPStateError("SettlementIntent can only be created from an ACCEPT negotiation")
         if parse_utc(utc_now_iso()) > parse_utc(negotiation_data["expires_at"]):
-            raise ACPExpiredError("Cannot create settlement from an expired negotiation")
+            raise XAPExpiredError("Cannot create settlement from an expired negotiation")
 
         created_at = parse_utc(utc_now_iso())
         max_latency_ms = negotiation_data.get("sla_declaration", {}).get("max_latency_ms", 60000)
@@ -72,7 +72,7 @@ class SettlementIntent:
         }
 
         data: dict[str, Any] = {
-            "acp_version": "0.1",
+            "xap_version": "0.1",
             "settlement_id": generate_prefixed_id("stl_"),
             "state": "LOCKED",
             "negotiation_id": negotiation_data["negotiation_id"],
@@ -130,7 +130,7 @@ class SettlementIntent:
 
     def verify_condition(self) -> bool:
         if self._data["state"] != "VERIFYING":
-            raise ACPStateError("Condition verification requires VERIFYING state")
+            raise XAPStateError("Condition verification requires VERIFYING state")
 
         result = self._data.get("execution_result", {})
         output = result.get("output", {})
@@ -174,12 +174,12 @@ class SettlementIntent:
 
     def release(self) -> "SettlementIntent":
         if self._data["state"] != "VERIFYING":
-            raise ACPStateError("Release requires VERIFYING state")
+            raise XAPStateError("Release requires VERIFYING state")
 
         if "verification_result" not in self._data:
             self.verify_condition()
         if not self._data["verification_result"]["condition_met"]:
-            raise ACPStateError("Cannot release settlement when condition is not met")
+            raise XAPStateError("Cannot release settlement when condition is not met")
 
         distributions = self.apply_splits()
         completion = self._data.get("execution_result", {}).get("completion_percentage", 100)
@@ -190,14 +190,14 @@ class SettlementIntent:
         self._data["split_distributions"] = distributions
 
         self._append_event("FUNDS_RELEASED", self._data["payer_agent_id"], {"state": target_state})
-        self._append_event("SPLIT_DISTRIBUTED", "acp_platform", {"count": len(distributions)})
+        self._append_event("SPLIT_DISTRIBUTED", "xap_platform", {"count": len(distributions)})
         self._issue_receipt()
         validate_against_schema(self.SCHEMA, self._data)
         return self
 
     def rollback(self) -> "SettlementIntent":
         if self._data["state"] != "VERIFYING":
-            raise ACPStateError("Rollback requires VERIFYING state")
+            raise XAPStateError("Rollback requires VERIFYING state")
 
         self._data["state"] = "ROLLED_BACK"
         self._data["settled_at"] = utc_now_iso()
@@ -224,21 +224,21 @@ class SettlementIntent:
             share_type = rule.get("share_type")
             if share_type == "fixed":
                 if "fixed_amount" not in rule:
-                    raise ACPSplitError("Fixed split rule missing fixed_amount")
+                    raise XAPSplitError("Fixed split rule missing fixed_amount")
                 fixed_total += float(rule["fixed_amount"])
             elif share_type == "percentage":
                 if "percentage" not in rule:
-                    raise ACPSplitError("Percentage split rule missing percentage")
+                    raise XAPSplitError("Percentage split rule missing percentage")
                 percentage_total += float(rule["percentage"])
             else:
-                raise ACPSplitError(f"Unsupported share_type: {share_type}")
+                raise XAPSplitError(f"Unsupported share_type: {share_type}")
 
         if round(percentage_total, 10) != 100.0:
-            raise ACPSplitError("Percentage split rules must sum to 100")
+            raise XAPSplitError("Percentage split rules must sum to 100")
 
         locked_amount = float(self._data["locked_amount"])
         if fixed_total > locked_amount:
-            raise ACPSplitError("Fixed split amounts exceed locked amount")
+            raise XAPSplitError("Fixed split amounts exceed locked amount")
 
         remaining = locked_amount - fixed_total
         now = utc_now_iso()
@@ -281,7 +281,7 @@ class SettlementIntent:
     def _transition(self, expected_state: str, next_state: str) -> None:
         current = self._data["state"]
         if current != expected_state:
-            raise ACPStateError(f"Invalid state transition from {current} to {next_state}")
+            raise XAPStateError(f"Invalid state transition from {current} to {next_state}")
         self._data["state"] = next_state
 
     def _append_event(
@@ -369,7 +369,6 @@ def _build_initial_event_chain(negotiation_data: dict[str, Any], settlement_id: 
 def _extract_path(data: Any, path: str | None) -> Any:
     if not path:
         return data
-    # Minimal JSONPath-like support: $.a.b.c
     normalized = path.strip()
     if normalized.startswith("$"):
         normalized = normalized[1:]

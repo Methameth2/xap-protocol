@@ -1,4 +1,4 @@
-"""ExecutionReceipt implementation for ACP v0.1."""
+"""ExecutionReceipt implementation for XAP v0.1."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ class ExecutionReceipt:
         event_chain = deep_copy(getattr(settlement, "event_chain", settlement_data.get("event_chain", [])))
 
         receipt_data: dict[str, Any] = {
-            "acp_version": "0.1",
+            "xap_version": "0.1",
             "receipt_id": generate_prefixed_id("rcpt_"),
             "receipt_type": _resolve_receipt_type(settlement_data["state"]),
             "settlement_id": settlement_data["settlement_id"],
@@ -44,7 +44,7 @@ class ExecutionReceipt:
             "event_id": generate_prefixed_id("evt_"),
             "event_type": "RECEIPT_ISSUED",
             "timestamp": receipt_data["created_at"],
-            "agent_id": "acp_platform",
+            "agent_id": "xap_platform",
             "event_data": {"receipt_id": receipt_data["receipt_id"]},
             "previous_event_hash": _event_hash(receipt_data["event_chain"][-1]) if receipt_data["event_chain"] else "",
         }

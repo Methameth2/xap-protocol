@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://acp.agentralabs.tech/schemas/v0.1/negotiation-contract.json",
+  "$id": "https://xap.agentralabs.tech/schemas/v0.1/negotiation-contract.json",
   "title": "NegotiationContract",
-  "description": "ACP v0.1 — The terms of a proposed agent-to-agent exchange. Time-bound. Signed by both parties before execution begins. Permanently logged to both agents' identity histories.",
+  "description": "XAP v0.1 — The terms of a proposed agent-to-agent exchange. Time-bound. Signed by both parties before execution begins. Permanently logged to both agents' identity histories.",
   "type": "object",
   "required": [
-    "acp_version",
+    "xap_version",
     "negotiation_id",
     "state",
     "initiator_agent_id",
@@ -17,7 +17,7 @@
     "expires_at"
   ],
   "properties": {
-    "acp_version": {
+    "xap_version": {
       "type": "string",
       "const": "0.1"
     },
@@ -29,15 +29,15 @@
     "state": {
       "type": "string",
       "enum": ["OFFER", "COUNTER", "ACCEPT", "REJECT"],
-      "description": "Current negotiation state. ACP v0.1 uses exactly four states. Simplicity is a design requirement."
+      "description": "Current negotiation state. XAP v0.1 uses exactly four states. Simplicity is a design requirement."
     },
     "initiator_agent_id": {
       "type": "string",
-      "description": "ACP agent_id of the agent initiating the negotiation."
+      "description": "XAP agent_id of the agent initiating the negotiation."
     },
     "counterparty_agent_id": {
       "type": "string",
-      "description": "ACP agent_id of the agent receiving the negotiation."
+      "description": "XAP agent_id of the agent receiving the negotiation."
     },
     "capability_id": {
       "type": "string",
@@ -175,7 +175,7 @@
       "properties": {
         "arbitration_mode": {
           "type": "string",
-          "enum": ["automatic", "acp_arbitrator", "human_arbitrator"],
+          "enum": ["automatic", "xap_arbitrator", "human_arbitrator"],
           "description": "How disputes are resolved if condition verification is ambiguous."
         },
         "resolution_sequence": {
@@ -256,11 +256,11 @@
   },
   "examples": [
     {
-      "acp_version": "0.1",
+      "xap_version": "0.1",
       "negotiation_id": "neg_Xm7KpQrTvWnJhLsYdBfCeGaUiOzKw9P",
       "state": "ACCEPT",
-      "initiator_agent_id": "acp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6",
-      "counterparty_agent_id": "acp_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
+      "initiator_agent_id": "xap_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6",
+      "counterparty_agent_id": "xap_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
       "capability_id": "enrich_company_profile",
       "offer": {
         "offered_rate": 0.07,

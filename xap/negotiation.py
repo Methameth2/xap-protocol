@@ -1,4 +1,4 @@
-"""NegotiationContract implementation for ACP v0.1."""
+"""NegotiationContract implementation for XAP v0.1."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from ._common import (
     validate_against_schema,
 )
 from .crypto import generate_keypair, sign_payload
-from .errors import ACPExpiredError, ACPStateError
+from .errors import XAPExpiredError, XAPStateError
 
 _SYSTEM_PRIVATE_KEY, _SYSTEM_PUBLIC_KEY = generate_keypair()
 
@@ -43,7 +43,7 @@ class NegotiationContract:
         expires = created + timedelta(seconds=expires_in_seconds)
 
         data = {
-            "acp_version": "0.1",
+            "xap_version": "0.1",
             "negotiation_id": generate_prefixed_id("neg_"),
             "state": "OFFER",
             "initiator_agent_id": initiator_id,
@@ -80,7 +80,7 @@ class NegotiationContract:
         private_key: str | None = None,
     ) -> "NegotiationContract":
         if self.is_expired():
-            raise ACPExpiredError("Negotiation is expired")
+            raise XAPExpiredError("Negotiation is expired")
 
         current = self._data["state"]
         if current == "OFFER":
@@ -88,7 +88,7 @@ class NegotiationContract:
         elif current == "COUNTER":
             next_state = "OFFER"
         else:
-            raise ACPStateError(f"Invalid transition from {current} to COUNTER/OFFER")
+            raise XAPStateError(f"Invalid transition from {current} to COUNTER/OFFER")
 
         self._data["offer"] = new_offer
         self._data["state"] = next_state
@@ -98,17 +98,17 @@ class NegotiationContract:
 
     def accept(self, agent_id: str, private_key: str) -> "NegotiationContract":
         if self.is_expired():
-            raise ACPExpiredError("Negotiation is expired")
+            raise XAPExpiredError("Negotiation is expired")
 
         current = self._data["state"]
         if current not in {"OFFER", "COUNTER", "ACCEPT"}:
-            raise ACPStateError(f"Invalid transition from {current} to ACCEPT")
+            raise XAPStateError(f"Invalid transition from {current} to ACCEPT")
         if current != "ACCEPT":
             self._data["state"] = "ACCEPT"
             self._data["accepted_at"] = utc_now_iso()
         if agent_id == self._data["initiator_agent_id"]:
             if self._data.get("final_signature_initiator"):
-                raise ACPStateError("Initiator has already accepted this negotiation")
+                raise XAPStateError("Initiator has already accepted this negotiation")
             self._data["final_signature_initiator"] = sign_payload(
                 self._data,
                 private_key,
@@ -116,14 +116,14 @@ class NegotiationContract:
             )
         elif agent_id == self._data["counterparty_agent_id"]:
             if self._data.get("final_signature_counterparty"):
-                raise ACPStateError("Counterparty has already accepted this negotiation")
+                raise XAPStateError("Counterparty has already accepted this negotiation")
             self._data["final_signature_counterparty"] = sign_payload(
                 self._data,
                 private_key,
                 exclude_fields=["final_signature_initiator", "final_signature_counterparty"],
             )
         else:
-            raise ACPStateError("accepting agent_id is not part of the negotiation")
+            raise XAPStateError("accepting agent_id is not part of the negotiation")
 
         self._append_history_entry("ACCEPT", agent_id, private_key, note="accept")
         validate_against_schema(self.SCHEMA, self._data)
@@ -131,7 +131,7 @@ class NegotiationContract:
 
     def reject(self, agent_id: str, private_key: str | None = None) -> "NegotiationContract":
         if self._data["state"] == "REJECT":
-            raise ACPStateError("Negotiation is already REJECT")
+            raise XAPStateError("Negotiation is already REJECT")
 
         self._data["state"] = "REJECT"
         self._append_history_entry("REJECT", agent_id, private_key or _SYSTEM_PRIVATE_KEY, note="reject")

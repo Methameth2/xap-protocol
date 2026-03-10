@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://acp.agentralabs.tech/schemas/v0.1/agent-identity.json",
+  "$id": "https://xap.agentralabs.tech/schemas/v0.1/agent-identity.json",
   "title": "AgentIdentity",
-  "description": "ACP v0.1 — The permanent economic identity and capability passport for an autonomous agent. Cryptographically anchored. Append-only reputation.",
+  "description": "XAP v0.1 — The permanent economic identity and capability passport for an autonomous agent. Cryptographically anchored. Append-only reputation.",
   "type": "object",
   "required": [
-    "acp_version",
+    "xap_version",
     "agent_id",
     "public_key",
     "key_algorithm",
@@ -16,14 +16,14 @@
     "reputation"
   ],
   "properties": {
-    "acp_version": {
+    "xap_version": {
       "type": "string",
       "const": "0.1",
-      "description": "ACP protocol version this identity was registered under."
+      "description": "XAP protocol version this identity was registered under."
     },
     "agent_id": {
       "type": "string",
-      "pattern": "^acp_[a-zA-Z0-9]{32}$",
+      "pattern": "^xap_[a-zA-Z0-9]{32}$",
       "description": "Globally unique agent identifier. Assigned at registration. Immutable."
     },
     "public_key": {
@@ -33,7 +33,7 @@
     "key_algorithm": {
       "type": "string",
       "enum": ["Ed25519"],
-      "description": "Signing algorithm. ACP v0.1 requires Ed25519."
+      "description": "Signing algorithm. XAP v0.1 requires Ed25519."
     },
     "registered_at": {
       "type": "string",
@@ -98,7 +98,7 @@
         },
         "settlement_unit": {
           "type": "string",
-          "description": "Unit of account for settlement. e.g. 'USD', 'USDC', 'ACP_CREDIT'"
+          "description": "Unit of account for settlement. e.g. 'USD', 'USDC', 'XAP_CREDIT'"
         },
         "conditional_rates": {
           "type": "array",
@@ -169,7 +169,7 @@
         "total_executions": {
           "type": "integer",
           "minimum": 0,
-          "description": "Total number of executions completed under ACP."
+          "description": "Total number of executions completed under XAP."
         },
         "successful_settlements": {
           "type": "integer",
@@ -235,8 +235,8 @@
   },
   "examples": [
     {
-      "acp_version": "0.1",
-      "agent_id": "acp_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
+      "xap_version": "0.1",
+      "agent_id": "xap_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
       "public_key": "MCowBQYDK2VwAyEA...",
       "key_algorithm": "Ed25519",
       "registered_at": "2026-03-03T00:00:00Z",

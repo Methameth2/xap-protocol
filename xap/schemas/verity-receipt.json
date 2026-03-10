@@ -1,18 +1,18 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://acp.agentralabs.tech/schemas/v0.1/verity-receipt.json",
+  "$id": "https://xap.agentralabs.tech/schemas/v0.1/verity-receipt.json",
   "title": "VerityReceipt",
-  "description": "ACP v0.1 — In progress. Placeholder schema for deterministic decision provenance and replay.",
+  "description": "XAP v0.1 — In progress. Placeholder schema for deterministic decision provenance and replay.",
   "type": "object",
   "required": [
-    "acp_version",
+    "xap_version",
     "verity_id",
     "decision_type",
     "created_at",
     "decision_signature"
   ],
   "properties": {
-    "acp_version": {
+    "xap_version": {
       "type": "string",
       "const": "0.1"
     },

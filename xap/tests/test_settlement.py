@@ -1,6 +1,6 @@
 import pytest
 
-from acp import ACPSplitError, ACPStateError, NegotiationContract, SettlementIntent, generate_keypair
+from xap import XAPSplitError, XAPStateError, NegotiationContract, SettlementIntent, generate_keypair
 
 
 def _offer(rate=3.5):
@@ -30,16 +30,16 @@ def _accepted_negotiation():
     counterparty_priv, _ = generate_keypair()
 
     contract = NegotiationContract.create(
-        initiator_id="acp_initiator_123",
-        counterparty_id="acp_counterparty_123",
+        initiator_id="xap_initiator_123",
+        counterparty_id="xap_counterparty_123",
         capability_id="cap_data_enrich",
         offer=_offer(),
         sla=_sla(),
         expires_in_seconds=300,
     )
-    contract.counter(_offer(rate=3.1), proposed_by="acp_counterparty_123")
-    contract.accept("acp_initiator_123", initiator_priv)
-    contract.accept("acp_counterparty_123", counterparty_priv)
+    contract.counter(_offer(rate=3.1), proposed_by="xap_counterparty_123")
+    contract.accept("xap_initiator_123", initiator_priv)
+    contract.accept("xap_counterparty_123", counterparty_priv)
     return contract
 
 
@@ -64,7 +64,7 @@ def test_settlement_invalid_state_transition_raises_state_error():
     negotiation = _accepted_negotiation()
     intent = SettlementIntent.create(negotiation, idempotency_key="idemp-2")
 
-    with pytest.raises(ACPStateError):
+    with pytest.raises(XAPStateError):
         intent.release()
 
 
@@ -76,14 +76,14 @@ def test_settlement_invalid_split_rules_raise_split_error():
     payload = intent.to_dict()
     payload["split_rules"] = [
         {
-            "recipient_agent_id": "acp_counterparty_123",
+            "recipient_agent_id": "xap_counterparty_123",
             "share_type": "percentage",
             "percentage": 70,
             "role": "subagent",
             "partial_completion_eligible": True,
         },
         {
-            "recipient_agent_id": "acp_platform_123",
+            "recipient_agent_id": "xap_platform_123",
             "share_type": "percentage",
             "percentage": 20,
             "role": "platform",
@@ -96,7 +96,7 @@ def test_settlement_invalid_split_rules_raise_split_error():
     intent.submit_result(output={"completion_percentage": 100}, quality_score=0.95, latency_ms=500, agent_private_key=payee_priv)
     intent.verify_condition()
 
-    with pytest.raises(ACPSplitError):
+    with pytest.raises(XAPSplitError):
         intent.release()
 
 
@@ -104,7 +104,7 @@ def test_end_to_end_register_negotiate_lock_execute_verify_release_receipt():
     initiator_priv, initiator_pub = generate_keypair()
     counterparty_priv, counterparty_pub = generate_keypair()
 
-    from acp import AgentIdentity
+    from xap import AgentIdentity
 
     initiator = AgentIdentity.create(
         capabilities=[

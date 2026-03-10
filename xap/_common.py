@@ -1,4 +1,4 @@
-"""Common ACP helpers for IDs, timestamps and schema validation."""
+"""Common XAP helpers for IDs, timestamps and schema validation."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator, FormatChecker
 
-from .errors import ACPValidationError
+from .errors import XAPValidationError
 
 SCHEMA_DIR = Path(__file__).parent / "schemas"
 
@@ -29,7 +29,7 @@ def validate_against_schema(schema_name: str, payload: dict[str, Any]) -> None:
     if errors:
         first = errors[0]
         path = ".".join(str(part) for part in first.absolute_path) or "<root>"
-        raise ACPValidationError(f"Schema validation failed for {schema_name} at {path}: {first.message}")
+        raise XAPValidationError(f"Schema validation failed for {schema_name} at {path}: {first.message}")
 
 
 def utc_now_iso() -> str:

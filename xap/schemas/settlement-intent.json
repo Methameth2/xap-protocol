@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://acp.agentralabs.tech/schemas/v0.1/settlement-intent.json",
+  "$id": "https://xap.agentralabs.tech/schemas/v0.1/settlement-intent.json",
   "title": "SettlementIntent",
-  "description": "ACP v0.1 — The escrow instruction. Funds locked. Condition declared. Verification method specified. Release or rollback logic defined upfront. No ambiguity at settlement time. The core primitive of ACP.",
+  "description": "XAP v0.1 — The escrow instruction. Funds locked. Condition declared. Verification method specified. Release or rollback logic defined upfront. No ambiguity at settlement time. The core primitive of XAP.",
   "type": "object",
   "required": [
-    "acp_version",
+    "xap_version",
     "settlement_id",
     "state",
     "negotiation_id",
@@ -20,7 +20,7 @@
     "execution_deadline"
   ],
   "properties": {
-    "acp_version": {
+    "xap_version": {
       "type": "string",
       "const": "0.1"
     },
@@ -62,7 +62,7 @@
     },
     "settlement_unit": {
       "type": "string",
-      "description": "Unit of account for this settlement. e.g. 'USD', 'USDC', 'ACP_CREDIT'"
+      "description": "Unit of account for this settlement. e.g. 'USD', 'USDC', 'XAP_CREDIT'"
     },
     "condition": {
       "type": "object",
@@ -190,7 +190,7 @@
     },
     "verification_result": {
       "type": "object",
-      "description": "Populated by ACP condition verification engine after execution_result is submitted.",
+      "description": "Populated by XAP condition verification engine after execution_result is submitted.",
       "properties": {
         "verified_at": {
           "type": "string",
@@ -266,12 +266,12 @@
   },
   "examples": [
     {
-      "acp_version": "0.1",
+      "xap_version": "0.1",
       "settlement_id": "stl_Zn8LqRsTuVwXyAzBcDeFgHiJkLmNoPqR",
       "state": "LOCKED",
       "negotiation_id": "neg_Xm7KpQrTvWnJhLsYdBfCeGaUiOzKw9P",
-      "payer_agent_id": "acp_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6",
-      "payee_agent_id": "acp_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
+      "payer_agent_id": "xap_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6",
+      "payee_agent_id": "xap_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
       "locked_amount": 0.07,
       "settlement_unit": "USD",
       "condition": {
@@ -284,14 +284,14 @@
       },
       "split_rules": [
         {
-          "recipient_agent_id": "acp_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
+          "recipient_agent_id": "xap_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
           "share_type": "percentage",
           "percentage": 85,
           "role": "subagent",
           "partial_completion_eligible": true
         },
         {
-          "recipient_agent_id": "acp_PLATFORM000000000000000000000000",
+          "recipient_agent_id": "xap_PLATFORM000000000000000000000000",
           "share_type": "percentage",
           "percentage": 15,
           "role": "platform",

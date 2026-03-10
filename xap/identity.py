@@ -1,4 +1,4 @@
-"""AgentIdentity implementation for ACP v0.1."""
+"""AgentIdentity implementation for XAP v0.1."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from .crypto import canonical_json_hash, generate_keypair, sign_payload, verify_
 
 @dataclass
 class AgentIdentity:
-    """ACP AgentIdentity object with schema validation and Ed25519 signatures."""
+    """XAP AgentIdentity object with schema validation and Ed25519 signatures."""
 
     _data: dict[str, Any]
 
@@ -36,8 +36,8 @@ class AgentIdentity:
             _, public_key = generate_keypair()
 
         data: dict[str, Any] = {
-            "acp_version": "0.1",
-            "agent_id": generate_prefixed_id("acp_"),
+            "xap_version": "0.1",
+            "agent_id": generate_prefixed_id("xap_"),
             "public_key": public_key,
             "key_algorithm": "Ed25519",
             "registered_at": utc_now_iso(),

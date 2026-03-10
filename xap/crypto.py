@@ -1,4 +1,4 @@
-"""Ed25519 helpers and canonical JSON utilities for ACP."""
+"""Ed25519 helpers and canonical JSON utilities for XAP."""
 
 from __future__ import annotations
 

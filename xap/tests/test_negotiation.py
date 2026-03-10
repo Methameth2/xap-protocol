@@ -1,6 +1,6 @@
 import pytest
 
-from acp import ACPExpiredError, ACPStateError, NegotiationContract, generate_keypair
+from xap import XAPExpiredError, XAPStateError, NegotiationContract, generate_keypair
 
 
 def _offer(rate=3.5):
@@ -30,18 +30,18 @@ def test_negotiation_happy_path_offer_counter_accept():
     counterparty_priv, _ = generate_keypair()
 
     contract = NegotiationContract.create(
-        initiator_id="acp_initiator_123",
-        counterparty_id="acp_counterparty_123",
+        initiator_id="xap_initiator_123",
+        counterparty_id="xap_counterparty_123",
         capability_id="cap_data_enrich",
         offer=_offer(),
         sla=_sla(),
         expires_in_seconds=300,
     )
 
-    contract.counter(_offer(rate=3.0), proposed_by="acp_counterparty_123")
-    contract.counter(_offer(rate=2.9), proposed_by="acp_initiator_123")
-    contract.accept("acp_initiator_123", initiator_priv)
-    contract.accept("acp_counterparty_123", counterparty_priv)
+    contract.counter(_offer(rate=3.0), proposed_by="xap_counterparty_123")
+    contract.counter(_offer(rate=2.9), proposed_by="xap_initiator_123")
+    contract.accept("xap_initiator_123", initiator_priv)
+    contract.accept("xap_counterparty_123", counterparty_priv)
 
     assert contract.to_dict()["state"] == "ACCEPT"
 
@@ -50,28 +50,28 @@ def test_negotiation_invalid_transition_raises_state_error():
     initiator_priv, _ = generate_keypair()
 
     contract = NegotiationContract.create(
-        initiator_id="acp_initiator_123",
-        counterparty_id="acp_counterparty_123",
+        initiator_id="xap_initiator_123",
+        counterparty_id="xap_counterparty_123",
         capability_id="cap_data_enrich",
         offer=_offer(),
         sla=_sla(),
         expires_in_seconds=300,
     )
-    contract.accept("acp_initiator_123", initiator_priv)
+    contract.accept("xap_initiator_123", initiator_priv)
 
-    with pytest.raises(ACPStateError):
-        contract.counter(_offer(rate=2.8), proposed_by="acp_counterparty_123")
+    with pytest.raises(XAPStateError):
+        contract.counter(_offer(rate=2.8), proposed_by="xap_counterparty_123")
 
 
 def test_expired_negotiation_raises_expired_error():
     contract = NegotiationContract.create(
-        initiator_id="acp_initiator_123",
-        counterparty_id="acp_counterparty_123",
+        initiator_id="xap_initiator_123",
+        counterparty_id="xap_counterparty_123",
         capability_id="cap_data_enrich",
         offer=_offer(),
         sla=_sla(),
         expires_in_seconds=-1,
     )
 
-    with pytest.raises(ACPExpiredError):
-        contract.counter(_offer(rate=2.8), proposed_by="acp_counterparty_123")
+    with pytest.raises(XAPExpiredError):
+        contract.counter(_offer(rate=2.8), proposed_by="xap_counterparty_123")

@@ -1,7 +1,7 @@
 import uuid
 
-from acp import ExecutionReceipt, NegotiationContract, SettlementIntent, generate_keypair
-from acp.settlement import PLATFORM_PUBLIC_KEY
+from xap import ExecutionReceipt, NegotiationContract, SettlementIntent, generate_keypair
+from xap.settlement import PLATFORM_PUBLIC_KEY
 
 
 def _offer(rate=3.5):
@@ -31,15 +31,15 @@ def _released_settlement():
     counterparty_priv, _ = generate_keypair()
 
     negotiation = NegotiationContract.create(
-        initiator_id="acp_initiator_123",
-        counterparty_id="acp_counterparty_123",
+        initiator_id="xap_initiator_123",
+        counterparty_id="xap_counterparty_123",
         capability_id="cap_data_enrich",
         offer=_offer(),
         sla=_sla(),
         expires_in_seconds=300,
     )
-    negotiation.accept("acp_initiator_123", initiator_priv)
-    negotiation.accept("acp_counterparty_123", counterparty_priv)
+    negotiation.accept("xap_initiator_123", initiator_priv)
+    negotiation.accept("xap_counterparty_123", counterparty_priv)
 
     settlement = SettlementIntent.create(negotiation, idempotency_key=f"idemp-r1-{uuid.uuid4()}")
     settlement.start_execution()
