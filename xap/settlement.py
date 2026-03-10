@@ -1,9 +1,9 @@
-"""SettlementIntent implementation for XAP v0.1."""
+"""SettlementIntent implementation for XAP v0.2."""
 
 from __future__ import annotations
 
+import secrets
 from dataclasses import dataclass, field
-from datetime import timedelta
 from hashlib import sha256
 from typing import Any, ClassVar
 
@@ -20,6 +20,20 @@ from .receipt import ExecutionReceipt
 
 _PLATFORM_PRIVATE_KEY, PLATFORM_PUBLIC_KEY = generate_keypair()
 
+_TERMINAL_STATES = {"SETTLED", "REFUNDED", "PARTIAL", "TIMEOUT", "FAILED_LOCK", "RELEASE_FAILED", "DISPUTED"}
+
+
+def _generate_settlement_id() -> str:
+    return f"stl_{secrets.token_hex(4)}"
+
+
+def _generate_idempotency_key() -> str:
+    return f"idem_{secrets.token_hex(8)}"
+
+
+def _generate_condition_id() -> str:
+    return f"cond_{secrets.token_hex(2)}"
+
 
 @dataclass
 class SettlementIntent:
@@ -28,7 +42,6 @@ class SettlementIntent:
 
     SCHEMA: ClassVar[str] = "settlement-intent.json"
     _idempotency_registry: ClassVar[dict[str, "SettlementIntent"]] = {}
-    _terminal_states: ClassVar[set[str]] = {"RELEASED", "PARTIAL_RELEASED", "ROLLED_BACK", "DISPUTED"}
 
     @property
     def settlement_id(self) -> str:
@@ -39,8 +52,8 @@ class SettlementIntent:
         return getattr(self, "_execution_receipt", None)
 
     @classmethod
-    def create(cls, negotiation: Any, idempotency_key: str) -> "SettlementIntent":
-        if idempotency_key in cls._idempotency_registry:
+    def create(cls, negotiation: Any, idempotency_key: str | None = None) -> "SettlementIntent":
+        if idempotency_key and idempotency_key in cls._idempotency_registry:
             return cls._idempotency_registry[idempotency_key]
 
         negotiation_data = negotiation.to_dict() if hasattr(negotiation, "to_dict") else deep_copy(negotiation)
@@ -50,94 +63,77 @@ class SettlementIntent:
         if parse_utc(utc_now_iso()) > parse_utc(negotiation_data["expires_at"]):
             raise XAPExpiredError("Cannot create settlement from an expired negotiation")
 
-        # v0.2 uses sla; v0.1 uses sla_declaration
-        sla_data = negotiation_data.get("sla") or negotiation_data.get("sla_declaration", {})
-
-        created_at = parse_utc(utc_now_iso())
-        max_latency_ms = sla_data.get("max_latency_ms", 60000)
-        execution_deadline = created_at + timedelta(milliseconds=max_latency_ms * 2)
-
-        # Support both v0.1 and v0.2 negotiation field names
+        # Read negotiation fields (v0.2)
         payer = negotiation_data.get("from_agent") or negotiation_data.get("initiator_agent_id", "")
         payee = negotiation_data.get("to_agent") or negotiation_data.get("counterparty_agent_id", "")
+        sla_data = negotiation_data.get("sla") or negotiation_data.get("sla_declaration", {})
 
-        # v0.2 uses pricing.amount_minor_units; v0.1 uses offer.offered_rate
+        # Amount from pricing (v0.2) or offer (v0.1)
         if "pricing" in negotiation_data:
-            locked_amount = negotiation_data["pricing"]["amount_minor_units"]
-            settlement_unit = negotiation_data["pricing"]["currency"]
+            total_amount = negotiation_data["pricing"]["amount_minor_units"]
+            currency = negotiation_data["pricing"]["currency"]
         else:
-            locked_amount = negotiation_data["offer"]["offered_rate"]
-            settlement_unit = negotiation_data["offer"]["settlement_unit"]
+            total_amount = int(negotiation_data["offer"]["offered_rate"] * 100)
+            currency = negotiation_data["offer"].get("settlement_unit", "USD")
 
-        # Build condition from available data
-        if "offer" in negotiation_data and "payment_condition" in negotiation_data.get("offer", {}):
-            condition = deep_copy(negotiation_data["offer"]["payment_condition"])
-        else:
-            min_quality_bps = sla_data.get("min_quality_score_bps")
-            if min_quality_bps is not None:
-                condition = {
-                    "condition_type": "probabilistic",
-                    "description": f"quality_score >= {min_quality_bps} bps",
-                    "probabilistic_check": {
-                        "score_field": "quality_score",
-                        "minimum_score": min_quality_bps / 10000.0,
-                    },
-                }
-            else:
-                condition = {
-                    "condition_type": "deterministic",
-                    "description": "execution completed",
-                }
+        # Build conditions from SLA
+        conditions = []
+        min_quality_bps = sla_data.get("min_quality_score_bps")
+        if min_quality_bps is not None:
+            conditions.append({
+                "condition_id": _generate_condition_id(),
+                "type": "probabilistic",
+                "check": "quality_score",
+                "operator": "gte",
+                "threshold": min_quality_bps,
+                "verifier": "engine",
+                "required": True,
+            })
+        if not conditions:
+            conditions.append({
+                "condition_id": _generate_condition_id(),
+                "type": "deterministic",
+                "check": "execution_completed",
+                "verifier": "engine",
+                "required": True,
+            })
 
-        split_rules = negotiation_data.get("split_rules") or [
-            {
-                "recipient_agent_id": payee,
-                "share_type": "percentage",
-                "percentage": 100,
-                "role": "subagent",
-                "partial_completion_eligible": True,
-            }
-        ]
-
-        partial_policy = sla_data.get("partial_completion_policy", "pro_rata")
-        policy_map = {
-            "pro_rata": "pro_rata_release",
-            "full_release": "full_release",
-            "full_rollback": "full_rollback",
-        }
+        idem_key = idempotency_key or _generate_idempotency_key()
+        timeout_ms = sla_data.get("max_latency_ms", 60000)
 
         data: dict[str, Any] = {
-            "xap_version": "0.1",
-            "settlement_id": generate_prefixed_id("stl_"),
-            "state": "LOCKED",
+            "settlement_id": _generate_settlement_id(),
             "negotiation_id": negotiation_data["negotiation_id"],
-            "payer_agent_id": payer,
-            "payee_agent_id": payee,
-            "locked_amount": locked_amount,
-            "settlement_unit": settlement_unit,
-            "condition": condition,
-            "split_rules": split_rules,
-            "failure_handling": {
-                "on_full_failure": "full_rollback",
-                "on_partial_completion": policy_map.get(partial_policy, "pro_rata_release"),
-                "on_timeout": "full_rollback",
-                "on_verification_ambiguity": "automatic_arbitration",
-            },
-            "idempotency_key": idempotency_key,
-            "created_at": created_at.isoformat() + "Z",
-            "execution_deadline": execution_deadline.isoformat() + "Z",
-            "declared_sla": deep_copy(sla_data),
+            "state": "FUNDS_LOCKED",
+            "payer_agent": payer,
+            "payee_agents": [
+                {"agent_id": payee, "share_bps": 10000, "role": "primary_executor"},
+            ],
+            "total_amount_minor_units": total_amount,
+            "currency": currency,
+            "adapter": "test",
+            "conditions": conditions,
+            "timeout_seconds": max(1, (timeout_ms * 2) // 1000),
+            "on_timeout": "full_refund",
+            "on_partial_completion": "pro_rata",
+            "on_failure": "full_refund",
+            "chargeback_policy": "proportional",
+            "idempotency_key": idem_key,
+            "finality_class": "reversible",
+            "xap_version": "0.2.0",
+            "created_at": utc_now_iso(),
+            "signature": "",
         }
 
         validate_against_schema(cls.SCHEMA, data)
         obj = cls(data)
         obj.event_chain = _build_initial_event_chain(negotiation_data, data["settlement_id"])
-        cls._idempotency_registry[idempotency_key] = obj
+        cls._idempotency_registry[idem_key] = obj
         return obj
 
     def start_execution(self) -> "SettlementIntent":
-        self._transition("LOCKED", "EXECUTING")
-        self._append_event("EXECUTION_STARTED", self._data["payee_agent_id"], {"state": "EXECUTING"})
+        self._transition("FUNDS_LOCKED", "EXECUTING")
+        self._append_event("EXECUTION_STARTED", self._primary_payee(), {"state": "EXECUTING"})
         return self
 
     def submit_result(
@@ -147,10 +143,10 @@ class SettlementIntent:
         latency_ms: int,
         agent_private_key: str,
     ) -> "SettlementIntent":
-        self._transition("EXECUTING", "VERIFYING")
+        self._transition("EXECUTING", "PENDING_VERIFICATION")
 
         result = {
-            "submitted_by": self._data["payee_agent_id"],
+            "submitted_by": self._primary_payee(),
             "submitted_at": utc_now_iso(),
             "output": output,
             "quality_score": quality_score,
@@ -159,136 +155,117 @@ class SettlementIntent:
         }
         result["execution_signature"] = sign_payload(result, agent_private_key, exclude_fields=["execution_signature"])
         self._data["execution_result"] = result
-        self._append_event("EXECUTION_COMPLETED", self._data["payee_agent_id"], result, signer_key=agent_private_key)
+        self._append_event("EXECUTION_COMPLETED", self._primary_payee(), result, signer_key=agent_private_key)
         validate_against_schema(self.SCHEMA, self._data)
         return self
 
     def verify_condition(self) -> bool:
-        if self._data["state"] != "VERIFYING":
-            raise XAPStateError("Condition verification requires VERIFYING state")
+        if self._data["state"] != "PENDING_VERIFICATION":
+            raise XAPStateError("Condition verification requires PENDING_VERIFICATION state")
 
         result = self._data.get("execution_result", {})
-        output = result.get("output", {})
-        condition = self._data["condition"]
-        condition_type = condition.get("condition_type")
+        conditions = self._data["conditions"]
+        all_required_met = True
+        evaluations = []
 
-        condition_met = False
-        detail = ""
+        for cond in conditions:
+            met = self._evaluate_condition(cond, result)
+            evaluations.append({
+                "condition_id": cond["condition_id"],
+                "type": cond["type"],
+                "met": met,
+                "required": cond["required"],
+            })
+            if cond["required"] and not met:
+                all_required_met = False
 
-        if condition_type == "probabilistic":
-            minimum_score = condition.get("probabilistic_check", {}).get("minimum_score", 0)
-            actual_score = result.get("quality_score", 0)
-            condition_met = actual_score >= minimum_score
-            detail = f"quality_score={actual_score} minimum_score={minimum_score}"
-        elif condition_type == "deterministic":
-            deterministic = condition.get("deterministic_check", {})
-            expected = deterministic.get("expected_value")
-            check_path = deterministic.get("check_path")
-            value = _extract_path(output, check_path) if check_path else output
-            condition_met = value == expected if expected is not None else bool(value)
-            detail = f"value={value} expected={expected}"
-        elif condition_type == "human_verified":
-            condition_met = bool(output.get("human_verified"))
-            detail = "human verification flag checked"
+        if all_required_met:
+            resulting_state = "SETTLED"
+        else:
+            completion = result.get("completion_percentage", 100)
+            resulting_state = "REFUNDED" if completion >= 100 else "PARTIAL"
 
         self._data["verification_result"] = {
             "verified_at": utc_now_iso(),
-            "condition_met": condition_met,
-            "verification_method": condition_type,
-            "verification_detail": detail,
-            "resulting_state": "RELEASED" if condition_met else "ROLLED_BACK",
+            "conditions_evaluated": evaluations,
+            "all_required_met": all_required_met,
+            "resulting_state": resulting_state,
+            "verification_detail": f"required_met={all_required_met} conditions={len(evaluations)}",
         }
 
         self._append_event(
-            "CONDITION_VERIFIED" if condition_met else "CONDITION_FAILED",
-            self._data["payer_agent_id"],
-            {"condition_met": condition_met, "detail": detail},
+            "CONDITION_VERIFIED" if all_required_met else "CONDITION_FAILED",
+            self._data["payer_agent"],
+            {"all_required_met": all_required_met},
         )
         validate_against_schema(self.SCHEMA, self._data)
-        return condition_met
+        return all_required_met
 
     def release(self) -> "SettlementIntent":
-        if self._data["state"] != "VERIFYING":
-            raise XAPStateError("Release requires VERIFYING state")
+        if self._data["state"] != "PENDING_VERIFICATION":
+            raise XAPStateError("Release requires PENDING_VERIFICATION state")
 
         if "verification_result" not in self._data:
             self.verify_condition()
-        if not self._data["verification_result"]["condition_met"]:
-            raise XAPStateError("Cannot release settlement when condition is not met")
+        if not self._data["verification_result"]["all_required_met"]:
+            raise XAPStateError("Cannot release settlement when required conditions are not met")
 
         distributions = self.apply_splits()
         completion = self._data.get("execution_result", {}).get("completion_percentage", 100)
-        target_state = "PARTIAL_RELEASED" if completion < 100 else "RELEASED"
+        target_state = "PARTIAL" if completion < 100 else "SETTLED"
 
         self._data["state"] = target_state
         self._data["settled_at"] = utc_now_iso()
         self._data["split_distributions"] = distributions
 
-        self._append_event("FUNDS_RELEASED", self._data["payer_agent_id"], {"state": target_state})
-        self._append_event("SPLIT_DISTRIBUTED", "xap_platform", {"count": len(distributions)})
+        self._append_event("FUNDS_RELEASED", self._data["payer_agent"], {"state": target_state})
         self._issue_receipt()
         validate_against_schema(self.SCHEMA, self._data)
         return self
 
-    def rollback(self) -> "SettlementIntent":
-        if self._data["state"] != "VERIFYING":
-            raise XAPStateError("Rollback requires VERIFYING state")
+    def refund(self) -> "SettlementIntent":
+        if self._data["state"] != "PENDING_VERIFICATION":
+            raise XAPStateError("Refund requires PENDING_VERIFICATION state")
 
-        self._data["state"] = "ROLLED_BACK"
+        self._data["state"] = "REFUNDED"
         self._data["settled_at"] = utc_now_iso()
         if "verification_result" not in self._data:
             self._data["verification_result"] = {
                 "verified_at": utc_now_iso(),
-                "condition_met": False,
-                "verification_method": self._data["condition"].get("condition_type", "deterministic"),
-                "verification_detail": "rollback requested",
-                "resulting_state": "ROLLED_BACK",
+                "conditions_evaluated": [],
+                "all_required_met": False,
+                "resulting_state": "REFUNDED",
+                "verification_detail": "refund requested",
             }
 
-        self._append_event("FUNDS_ROLLED_BACK", self._data["payer_agent_id"], {"state": "ROLLED_BACK"})
+        self._append_event("FUNDS_ROLLED_BACK", self._data["payer_agent"], {"state": "REFUNDED"})
         self._issue_receipt()
         validate_against_schema(self.SCHEMA, self._data)
         return self
 
     def apply_splits(self) -> list[dict[str, Any]]:
-        split_rules = self._data.get("split_rules", [])
-        fixed_total = 0.0
-        percentage_total = 0.0
+        payee_agents = self._data.get("payee_agents", [])
+        total_bps = sum(p["share_bps"] for p in payee_agents)
+        if total_bps != 10000:
+            raise XAPSplitError(f"payee share_bps must sum to exactly 10000, got {total_bps}")
 
-        for rule in split_rules:
-            share_type = rule.get("share_type")
-            if share_type == "fixed":
-                if "fixed_amount" not in rule:
-                    raise XAPSplitError("Fixed split rule missing fixed_amount")
-                fixed_total += float(rule["fixed_amount"])
-            elif share_type == "percentage":
-                if "percentage" not in rule:
-                    raise XAPSplitError("Percentage split rule missing percentage")
-                percentage_total += float(rule["percentage"])
-            else:
-                raise XAPSplitError(f"Unsupported share_type: {share_type}")
-
-        if round(percentage_total, 10) != 100.0:
-            raise XAPSplitError("Percentage split rules must sum to 100")
-
-        locked_amount = float(self._data["locked_amount"])
-        if fixed_total > locked_amount:
-            raise XAPSplitError("Fixed split amounts exceed locked amount")
-
-        remaining = locked_amount - fixed_total
+        total_amount = self._data["total_amount_minor_units"]
         now = utc_now_iso()
         distributions: list[dict[str, Any]] = []
+        distributed = 0
 
-        for rule in split_rules:
-            if rule["share_type"] == "fixed":
-                amount = float(rule["fixed_amount"])
+        for i, payee in enumerate(payee_agents):
+            if i == len(payee_agents) - 1:
+                amount = total_amount - distributed
             else:
-                amount = remaining * float(rule["percentage"]) / 100.0
+                amount = (total_amount * payee["share_bps"]) // 10000
+                distributed += amount
 
             record = {
-                "recipient_agent_id": rule["recipient_agent_id"],
-                "amount": amount,
-                "role": rule.get("role", "custom"),
+                "agent_id": payee["agent_id"],
+                "amount_minor_units": amount,
+                "share_bps": payee["share_bps"],
+                "role": payee["role"],
                 "distribution_timestamp": now,
             }
             record["distribution_signature"] = sign_payload(
@@ -319,6 +296,32 @@ class SettlementIntent:
             raise XAPStateError(f"Invalid state transition from {current} to {next_state}")
         self._data["state"] = next_state
 
+    def _primary_payee(self) -> str:
+        return self._data["payee_agents"][0]["agent_id"]
+
+    def _evaluate_condition(self, cond: dict[str, Any], result: dict[str, Any]) -> bool:
+        cond_type = cond["type"]
+        if cond_type == "deterministic":
+            output = result.get("output", {})
+            return bool(output)
+        elif cond_type == "probabilistic":
+            operator = cond.get("operator", "gte")
+            threshold = cond.get("threshold", 0)
+            # Map check to result field
+            check = cond.get("check", "")
+            if check == "quality_score":
+                actual = int(result.get("quality_score", 0) * 10000)
+            elif check == "latency_ms":
+                actual = result.get("latency_ms", 0)
+            else:
+                actual = 0
+
+            ops = {"gte": actual >= threshold, "lte": actual <= threshold, "gt": actual > threshold, "lt": actual < threshold, "eq": actual == threshold}
+            return ops.get(operator, False)
+        elif cond_type == "human_approval":
+            return bool(result.get("output", {}).get("human_approved"))
+        return False
+
     def _append_event(
         self,
         event_type: str,
@@ -339,7 +342,7 @@ class SettlementIntent:
         self.event_chain.append(event)
 
     def _issue_receipt(self) -> None:
-        if self._data["state"] not in self._terminal_states:
+        if self._data["state"] not in _TERMINAL_STATES:
             return
         self._execution_receipt = ExecutionReceipt.issue(self, _PLATFORM_PRIVATE_KEY)
         self._data["execution_receipt_id"] = self._execution_receipt.receipt_id
@@ -364,19 +367,6 @@ def _build_initial_event_chain(negotiation_data: dict[str, Any], settlement_id: 
     first_event["signature"] = sign_payload(first_event, _PLATFORM_PRIVATE_KEY, exclude_fields=["signature"])
     chain.append(first_event)
 
-    state = negotiation_data.get("state", "OFFER")
-    event_type_map = {"OFFER": "OFFER_MADE", "COUNTER": "COUNTER_MADE", "ACCEPT": "CONTRACT_ACCEPTED", "REJECT": "OFFER_MADE"}
-    event = {
-        "event_id": generate_prefixed_id("evt_"),
-        "event_type": event_type_map.get(state, "OFFER_MADE"),
-        "timestamp": negotiation_data.get("created_at", utc_now_iso()),
-        "agent_id": initiator,
-        "event_data": {"state": state},
-        "previous_event_hash": _event_hash(chain[-1]),
-    }
-    event["signature"] = sign_payload(event, _PLATFORM_PRIVATE_KEY, exclude_fields=["signature"])
-    chain.append(event)
-
     lock_event = {
         "event_id": generate_prefixed_id("evt_"),
         "event_type": "FUNDS_LOCKED",
@@ -388,22 +378,3 @@ def _build_initial_event_chain(negotiation_data: dict[str, Any], settlement_id: 
     lock_event["signature"] = sign_payload(lock_event, _PLATFORM_PRIVATE_KEY, exclude_fields=["signature"])
     chain.append(lock_event)
     return chain
-
-
-def _extract_path(data: Any, path: str | None) -> Any:
-    if not path:
-        return data
-    normalized = path.strip()
-    if normalized.startswith("$"):
-        normalized = normalized[1:]
-    normalized = normalized.lstrip(".")
-
-    value = data
-    for part in normalized.split("."):
-        if not part:
-            continue
-        if isinstance(value, dict):
-            value = value.get(part)
-        else:
-            return None
-    return value

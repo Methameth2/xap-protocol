@@ -1,0 +1,81 @@
+{
+  "settlement_id": "stl_d8e9f0a1",
+  "negotiation_id": "neg_c3d4e5f6",
+  "state": "PENDING_LOCK",
+  "payer_agent": "agent_7f3a9b2c",
+  "payee_agents": [
+    {
+      "agent_id": "agent_2d8e5f1a",
+      "share_bps": 4000,
+      "role": "primary_executor",
+      "min_payout_minor_units": 50
+    },
+    {
+      "agent_id": "agent_9c4b3e7d",
+      "share_bps": 2500,
+      "role": "data_provider",
+      "min_payout_minor_units": 25
+    },
+    {
+      "agent_id": "agent_b1c2d3e4",
+      "share_bps": 1500,
+      "role": "tool_provider",
+      "min_payout_minor_units": 10
+    },
+    {
+      "agent_id": "agent_f5a6b7c8",
+      "share_bps": 1000,
+      "role": "verifier"
+    },
+    {
+      "agent_id": "agent_00000001",
+      "share_bps": 1000,
+      "role": "platform"
+    }
+  ],
+  "total_amount_minor_units": 10000,
+  "currency": "USD",
+  "adapter": "stripe",
+  "conditions": [
+    {
+      "condition_id": "cond_c1d2",
+      "type": "deterministic",
+      "check": "output_delivered",
+      "verifier": "engine",
+      "required": true
+    },
+    {
+      "condition_id": "cond_e3f4",
+      "type": "probabilistic",
+      "check": "quality_score",
+      "operator": "gte",
+      "threshold": 8500,
+      "verifier": "neutral_third_party",
+      "verifier_agent_id": "agent_f5a6b7c8",
+      "weight_bps": 6000,
+      "required": false
+    },
+    {
+      "condition_id": "cond_a5b6",
+      "type": "probabilistic",
+      "check": "latency_ms",
+      "operator": "lte",
+      "threshold": 5000,
+      "verifier": "engine",
+      "weight_bps": 4000,
+      "required": false
+    }
+  ],
+  "timeout_seconds": 60,
+  "on_timeout": "hold_for_dispute",
+  "on_partial_completion": "pro_rata",
+  "on_failure": "full_refund",
+  "chargeback_policy": "orchestrator_absorbs",
+  "idempotency_key": "idem_a1b2c3d4e5f6a7b8",
+  "finality_class": "reversible",
+  "reversal_window_seconds": 10368000,
+  "org_id": "org_a1b2c3d4",
+  "xap_version": "0.2.0",
+  "created_at": "2026-03-15T14:35:00Z",
+  "signature": "ed25519:c2V0dGxlbWVudF9jb21wbGV4X3NpZw=="
+}

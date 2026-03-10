@@ -1,0 +1,49 @@
+{
+  "settlement_id": "stl_e2f3a4b5",
+  "negotiation_id": "neg_8a2f4c1d",
+  "state": "PENDING_LOCK",
+  "payer_agent": "agent_7f3a9b2c",
+  "payee_agents": [
+    {
+      "agent_id": "agent_2d8e5f1a",
+      "share_bps": 8500,
+      "role": "primary_executor"
+    },
+    {
+      "agent_id": "agent_00000001",
+      "share_bps": 1500,
+      "role": "platform"
+    }
+  ],
+  "total_amount_minor_units": 100000,
+  "currency": "USDC",
+  "adapter": "usdc_base",
+  "conditions": [
+    {
+      "condition_id": "cond_a7b8",
+      "type": "deterministic",
+      "check": "output_schema_valid",
+      "verifier": "engine",
+      "required": true
+    },
+    {
+      "condition_id": "cond_d9e0",
+      "type": "human_approval",
+      "check": "manager_sign_off",
+      "verifier": "payer",
+      "required": true,
+      "timeout_seconds": 3600
+    }
+  ],
+  "timeout_seconds": 7200,
+  "on_timeout": "full_refund",
+  "on_partial_completion": "full_refund",
+  "on_failure": "full_refund",
+  "chargeback_policy": "payer_absorbs",
+  "idempotency_key": "idem_c3d4e5f6a7b8c9d0",
+  "finality_class": "confirmation_required",
+  "org_id": "org_a1b2c3d4",
+  "xap_version": "0.2.0",
+  "created_at": "2026-03-15T15:00:00Z",
+  "signature": "ed25519:dXNkY19zZXR0bGVtZW50X3NpZw=="
+}

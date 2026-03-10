@@ -1,312 +1,300 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://xap.agentralabs.tech/schemas/v0.1/settlement-intent.json",
+  "$id": "https://xap.agentralabs.tech/schemas/v0.2/settlement-intent.json",
   "title": "SettlementIntent",
-  "description": "XAP v0.1 — The escrow instruction. Funds locked. Condition declared. Verification method specified. Release or rollback logic defined upfront. No ambiguity at settlement time. The core primitive of XAP.",
+  "description": "XAP v0.2 — The escrow instruction. Funds lock, conditions verify, funds release or refund. The core primitive. Every field, every constraint, every failure mode defined with zero ambiguity.",
   "type": "object",
   "required": [
-    "xap_version",
     "settlement_id",
-    "state",
     "negotiation_id",
-    "payer_agent_id",
-    "payee_agent_id",
-    "locked_amount",
-    "settlement_unit",
-    "condition",
-    "split_rules",
-    "failure_handling",
+    "state",
+    "payer_agent",
+    "payee_agents",
+    "total_amount_minor_units",
+    "currency",
+    "adapter",
+    "conditions",
+    "timeout_seconds",
+    "on_timeout",
+    "on_partial_completion",
+    "on_failure",
+    "chargeback_policy",
+    "idempotency_key",
+    "finality_class",
+    "xap_version",
     "created_at",
-    "execution_deadline"
+    "signature"
   ],
   "properties": {
-    "xap_version": {
-      "type": "string",
-      "const": "0.1"
-    },
     "settlement_id": {
       "type": "string",
-      "pattern": "^stl_[a-zA-Z0-9]{32}$",
-      "description": "Globally unique settlement identifier. Used for idempotent calls. Safe to retry."
+      "pattern": "^stl_[a-f0-9]{8}$",
+      "description": "Unique settlement identifier."
+    },
+    "negotiation_id": {
+      "type": "string",
+      "pattern": "^neg_[a-f0-9]{8}$",
+      "description": "Reference to the accepted NegotiationContract."
     },
     "state": {
       "type": "string",
       "enum": [
-        "LOCKED",
+        "PENDING_LOCK",
+        "FUNDS_LOCKED",
         "EXECUTING",
-        "VERIFYING",
-        "RELEASED",
-        "PARTIAL_RELEASED",
-        "ROLLED_BACK",
-        "DISPUTED",
-        "EXPIRED"
+        "PENDING_VERIFICATION",
+        "PENDING_RELEASE",
+        "SETTLED",
+        "REFUNDED",
+        "PARTIAL",
+        "TIMEOUT",
+        "FAILED_LOCK",
+        "RELEASE_FAILED",
+        "DISPUTED"
       ],
-      "description": "Current settlement state. Every state has a defined transition. No money ever in limbo."
+      "description": "Current settlement state. Every state has defined transitions. No money ever in limbo."
     },
-    "negotiation_id": {
+    "payer_agent": {
       "type": "string",
-      "description": "The NegotiationContract that created this SettlementIntent. Provides full audit chain."
-    },
-    "payer_agent_id": {
-      "type": "string",
+      "pattern": "^agent_[a-f0-9]{8}$",
       "description": "Agent locking funds into escrow."
     },
-    "payee_agent_id": {
-      "type": "string",
-      "description": "Agent that will receive funds on successful condition verification."
-    },
-    "locked_amount": {
-      "type": "number",
-      "minimum": 0,
-      "description": "Total amount locked in escrow. Cannot be accessed by either party until settlement resolves."
-    },
-    "settlement_unit": {
-      "type": "string",
-      "description": "Unit of account for this settlement. e.g. 'USD', 'USDC', 'XAP_CREDIT'"
-    },
-    "condition": {
-      "type": "object",
-      "description": "The condition that must be satisfied for funds to release. Copied from NegotiationContract at intent creation. Immutable.",
-      "required": ["condition_type", "description"],
-      "properties": {
-        "condition_type": {
-          "type": "string",
-          "enum": ["deterministic", "probabilistic", "human_verified"]
-        },
-        "description": {
-          "type": "string"
-        },
-        "deterministic_check": {
-          "type": "object",
-          "properties": {
-            "check_type": {
-              "type": "string",
-              "enum": ["http_status", "schema_valid", "value_match", "custom"]
-            },
-            "expected_value": {},
-            "check_path": { "type": "string" }
-          }
-        },
-        "probabilistic_check": {
-          "type": "object",
-          "properties": {
-            "score_field": { "type": "string" },
-            "minimum_score": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 1
-            }
-          }
-        },
-        "human_verified_check": {
-          "type": "object",
-          "properties": {
-            "approver_agent_id": { "type": "string" },
-            "approval_timeout_ms": { "type": "integer" },
-            "timeout_resolution": {
-              "type": "string",
-              "enum": ["release", "rollback"]
-            }
-          }
-        }
-      }
-    },
-    "split_rules": {
+    "payee_agents": {
       "type": "array",
-      "description": "Revenue split across multi-agent workflows. Orchestrator → subagents → tools. Every layer gets its declared share automatically. Think royalty distribution, not payments.",
+      "minItems": 1,
+      "description": "Agents receiving payment. share_bps must sum to exactly 10000.",
       "items": {
-        "type": "object",
-        "required": ["recipient_agent_id", "share_type"],
-        "properties": {
-          "recipient_agent_id": {
-            "type": "string",
-            "description": "Agent receiving this split."
-          },
-          "share_type": {
-            "type": "string",
-            "enum": ["percentage", "fixed"],
-            "description": "Whether this recipient gets a percentage of total or a fixed amount."
-          },
-          "percentage": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 100,
-            "description": "For share_type: percentage. All percentages across split_rules must sum to 100."
-          },
-          "fixed_amount": {
-            "type": "number",
-            "minimum": 0,
-            "description": "For share_type: fixed. Deducted from locked_amount before percentage splits."
-          },
-          "role": {
-            "type": "string",
-            "enum": ["orchestrator", "subagent", "tool", "platform", "custom"],
-            "description": "Role of this recipient in the execution chain."
-          },
-          "partial_completion_eligible": {
-            "type": "boolean",
-            "description": "Whether this recipient receives pro-rata payment on partial completion."
-          }
-        }
+        "$ref": "#/$defs/PayeeAgent"
       }
+    },
+    "total_amount_minor_units": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Total amount in minor currency units. No floats. Ever."
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3,6}$",
+      "description": "ISO 4217 currency code or crypto symbol (e.g., USD, USDC)."
+    },
+    "adapter": {
+      "type": "string",
+      "enum": ["stripe", "usdc_base", "usdc_ethereum", "test"],
+      "description": "Which settlement rail to use."
+    },
+    "conditions": {
+      "type": "array",
+      "minItems": 1,
+      "description": "What must be true for funds to release.",
+      "items": {
+        "$ref": "#/$defs/Condition"
+      }
+    },
+    "timeout_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 86400,
+      "description": "Maximum execution + verification time. Max 24 hours."
+    },
+    "on_timeout": {
+      "type": "string",
+      "enum": ["full_refund", "pro_rata", "hold_for_dispute"],
+      "description": "What happens when timeout hits."
+    },
+    "on_partial_completion": {
+      "type": "string",
+      "enum": ["pro_rata", "full_refund", "redistribute", "hold_for_dispute"],
+      "description": "What happens on partial success."
+    },
+    "on_failure": {
+      "type": "string",
+      "enum": ["full_refund", "hold_for_dispute"],
+      "description": "What happens on complete failure."
+    },
+    "chargeback_policy": {
+      "type": "string",
+      "enum": ["proportional", "payer_absorbs", "orchestrator_absorbs", "platform_absorbs"],
+      "description": "Who absorbs chargeback loss on split settlements."
+    },
+    "idempotency_key": {
+      "type": "string",
+      "pattern": "^idem_[a-f0-9]{8,32}$",
+      "description": "For safe retries. Same key always returns same result."
+    },
+    "finality_class": {
+      "type": "string",
+      "enum": ["instant", "reversible", "confirmation_required"],
+      "description": "When is this settlement truly final."
+    },
+    "reversal_window_seconds": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "How long the settlement can be reversed after completion. 0 = irreversible."
+    },
+    "org_id": {
+      "type": "string",
+      "pattern": "^org_[a-f0-9]{8}$",
+      "description": "Organizational context for budget enforcement."
+    },
+    "xap_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+",
+      "description": "Protocol version (semver)."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the intent was created."
+    },
+    "signature": {
+      "type": "string",
+      "description": "Ed25519 signature by payer_agent."
     },
     "execution_result": {
       "type": "object",
-      "description": "Populated by the executing agent upon task completion. Used for condition verification.",
+      "description": "Populated by the executing agent upon task completion.",
       "properties": {
-        "submitted_by": {
-          "type": "string",
-          "description": "agent_id of the agent submitting this result."
-        },
-        "submitted_at": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "output": {
-          "type": "object",
-          "description": "Raw execution output. Condition verification runs against this."
-        },
-        "quality_score": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1,
-          "description": "Self-reported quality score. Used when condition_type is probabilistic."
-        },
-        "latency_ms": {
-          "type": "integer",
-          "description": "Actual execution latency in milliseconds."
-        },
-        "completion_percentage": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 100,
-          "description": "For partial completions. Drives pro-rata calculation."
-        },
-        "execution_signature": {
-          "type": "string",
-          "description": "Ed25519 signature by executing agent over this result object."
-        }
+        "submitted_by": { "type": "string" },
+        "submitted_at": { "type": "string", "format": "date-time" },
+        "output": { "type": "object" },
+        "quality_score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "latency_ms": { "type": "integer", "minimum": 0 },
+        "completion_percentage": { "type": "number", "minimum": 0, "maximum": 100 },
+        "execution_signature": { "type": "string" }
       }
     },
     "verification_result": {
       "type": "object",
-      "description": "Populated by XAP condition verification engine after execution_result is submitted.",
+      "description": "Populated after condition verification.",
       "properties": {
-        "verified_at": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "condition_met": {
-          "type": "boolean",
-          "description": "Whether the declared condition was satisfied."
-        },
-        "verification_method": {
-          "type": "string",
-          "enum": ["deterministic", "probabilistic", "human_verified", "arbitration"]
-        },
-        "verification_detail": {
-          "type": "string",
-          "description": "Human and machine readable explanation of the verification outcome."
-        },
-        "resulting_state": {
-          "type": "string",
-          "enum": ["RELEASED", "PARTIAL_RELEASED", "ROLLED_BACK", "DISPUTED"]
-        }
+        "verified_at": { "type": "string", "format": "date-time" },
+        "conditions_evaluated": { "type": "array" },
+        "all_required_met": { "type": "boolean" },
+        "weighted_score_bps": { "type": "integer" },
+        "resulting_state": { "type": "string" },
+        "verification_detail": { "type": "string" }
       }
-    },
-    "failure_handling": {
-      "type": "object",
-      "description": "Pre-declared outcomes for every failure mode. Agents cannot have money in limbo.",
-      "required": ["on_full_failure", "on_timeout"],
-      "properties": {
-        "on_full_failure": {
-          "type": "string",
-          "enum": ["full_rollback", "partial_release", "dispute"],
-          "description": "What happens when execution fails completely."
-        },
-        "on_partial_completion": {
-          "type": "string",
-          "enum": ["pro_rata_release", "full_rollback", "full_release", "dispute"],
-          "description": "What happens when execution partially completes."
-        },
-        "on_timeout": {
-          "type": "string",
-          "enum": ["full_rollback", "release", "dispute"],
-          "description": "What happens when execution_deadline passes with no result submitted."
-        },
-        "on_verification_ambiguity": {
-          "type": "string",
-          "enum": ["automatic_arbitration", "human_arbitration", "rollback"],
-          "description": "What happens when condition verification cannot produce a clear result."
-        }
-      }
-    },
-    "idempotency_key": {
-      "type": "string",
-      "description": "Client-provided key for idempotent settlement calls. Agents retry safely. System handles duplicates gracefully without double-charging."
-    },
-    "created_at": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "execution_deadline": {
-      "type": "string",
-      "format": "date-time",
-      "description": "Hard deadline for execution result submission. Triggers failure_handling.on_timeout if missed."
     },
     "settled_at": {
       "type": "string",
       "format": "date-time",
-      "description": "Timestamp of final state resolution. Present when state is terminal."
+      "description": "Timestamp of final state resolution."
+    },
+    "split_distributions": {
+      "type": "array",
+      "description": "Actual amounts distributed to each payee.",
+      "items": { "type": "object" }
     },
     "execution_receipt_id": {
       "type": "string",
-      "description": "ID of the ExecutionReceipt created on settlement. Links to permanent audit trail."
+      "description": "ID of the ExecutionReceipt created on settlement."
     }
   },
-  "examples": [
-    {
-      "xap_version": "0.1",
-      "settlement_id": "stl_Zn8LqRsTuVwXyAzBcDeFgHiJkLmNoPqR",
-      "state": "LOCKED",
-      "negotiation_id": "neg_Xm7KpQrTvWnJhLsYdBfCeGaUiOzKw9P",
-      "payer_agent_id": "xap_A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6",
-      "payee_agent_id": "xap_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
-      "locked_amount": 0.07,
-      "settlement_unit": "USD",
-      "condition": {
-        "condition_type": "probabilistic",
-        "description": "Release payment when confidence_score in output is >= 0.90",
-        "probabilistic_check": {
-          "score_field": "confidence_score",
-          "minimum_score": 0.90
+  "$defs": {
+    "PayeeAgent": {
+      "type": "object",
+      "description": "A payee in the split settlement.",
+      "required": ["agent_id", "share_bps", "role"],
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "pattern": "^agent_[a-f0-9]{8}$",
+          "description": "Payee agent identifier."
+        },
+        "share_bps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "description": "This agent's share in basis points. All share_bps must sum to exactly 10000."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["primary_executor", "sub_executor", "data_provider", "tool_provider", "orchestrator", "verifier", "platform"],
+          "description": "Agent's role in the workflow."
+        },
+        "min_payout_minor_units": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Minimum payout threshold. Below this, accumulate as credit."
         }
       },
-      "split_rules": [
+      "additionalProperties": false
+    },
+    "Condition": {
+      "type": "object",
+      "description": "A verification condition for settlement.",
+      "required": ["condition_id", "type", "check", "verifier", "required"],
+      "properties": {
+        "condition_id": {
+          "type": "string",
+          "pattern": "^cond_[a-f0-9]{4}$",
+          "description": "Unique within this settlement."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["deterministic", "probabilistic", "human_approval"],
+          "description": "Verification type."
+        },
+        "check": {
+          "type": "string",
+          "description": "What is being verified."
+        },
+        "operator": {
+          "type": "string",
+          "enum": ["eq", "gte", "lte", "gt", "lt"],
+          "description": "Comparison operator. Required for probabilistic."
+        },
+        "threshold": {
+          "type": "integer",
+          "description": "Threshold value. Required for probabilistic."
+        },
+        "verifier": {
+          "type": "string",
+          "enum": ["engine", "payer", "payee", "neutral_third_party"],
+          "description": "Who runs the verification."
+        },
+        "verifier_agent_id": {
+          "type": "string",
+          "pattern": "^agent_[a-f0-9]{8}$",
+          "description": "Required when verifier is neutral_third_party."
+        },
+        "weight_bps": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "description": "How much this condition affects outcome for weighted multi-condition."
+        },
+        "required": {
+          "type": "boolean",
+          "description": "Must this condition pass for settlement?"
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Per-condition timeout override."
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
         {
-          "recipient_agent_id": "xap_k9mX2pQrTvWnJhLsYdBfCeGaUiOzKwMn",
-          "share_type": "percentage",
-          "percentage": 85,
-          "role": "subagent",
-          "partial_completion_eligible": true
+          "if": {
+            "properties": { "type": { "const": "probabilistic" } },
+            "required": ["type"]
+          },
+          "then": {
+            "required": ["operator", "threshold"]
+          }
         },
         {
-          "recipient_agent_id": "xap_PLATFORM000000000000000000000000",
-          "share_type": "percentage",
-          "percentage": 15,
-          "role": "platform",
-          "partial_completion_eligible": false
+          "if": {
+            "properties": { "verifier": { "const": "neutral_third_party" } },
+            "required": ["verifier"]
+          },
+          "then": {
+            "required": ["verifier_agent_id"]
+          }
         }
-      ],
-      "failure_handling": {
-        "on_full_failure": "full_rollback",
-        "on_partial_completion": "pro_rata_release",
-        "on_timeout": "full_rollback",
-        "on_verification_ambiguity": "automatic_arbitration"
-      },
-      "idempotency_key": "client_txn_20260303_001",
-      "created_at": "2026-03-03T10:00:48Z",
-      "execution_deadline": "2026-03-03T10:02:00Z"
+      ]
     }
-  ]
+  }
 }

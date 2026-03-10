@@ -42,7 +42,8 @@ def _released_settlement():
     )
     negotiation.accept("agent_bbbb2222", priv_b)
 
-    settlement = SettlementIntent.create(negotiation, idempotency_key=f"idemp-r1-{uuid.uuid4()}")
+    idem = f"idem_{uuid.uuid4().hex[:16]}"
+    settlement = SettlementIntent.create(negotiation, idempotency_key=idem)
     settlement.start_execution()
     settlement.submit_result(output={"completion_percentage": 100}, quality_score=0.9, latency_ms=800, agent_private_key=priv_b)
     settlement.verify_condition()

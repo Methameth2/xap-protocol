@@ -20,6 +20,11 @@ SCHEMA_EXAMPLE_MAP = {
         "negotiation-complex-offer.json",
         "negotiation-complex-counter.json",
     ],
+    "settlement-intent.json": [
+        "settlement-simple.json",
+        "settlement-complex-split.json",
+        "settlement-usdc-confirmation.json",
+    ],
 }
 
 

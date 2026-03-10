@@ -26,14 +26,24 @@ class ExecutionReceipt:
         settlement_data = settlement.to_dict() if hasattr(settlement, "to_dict") else deep_copy(settlement)
         event_chain = deep_copy(getattr(settlement, "event_chain", settlement_data.get("event_chain", [])))
 
+        # Support both v0.1 and v0.2 settlement field names
+        payer = settlement_data.get("payer_agent") or settlement_data.get("payer_agent_id", "")
+        payee_agents = settlement_data.get("payee_agents")
+        if payee_agents:
+            payee = payee_agents[0]["agent_id"]
+        else:
+            payee = settlement_data.get("payee_agent_id", "")
+
+        state = settlement_data["state"]
+
         receipt_data: dict[str, Any] = {
             "xap_version": "0.1",
             "receipt_id": generate_prefixed_id("rcpt_"),
-            "receipt_type": _resolve_receipt_type(settlement_data["state"]),
+            "receipt_type": _resolve_receipt_type(state),
             "settlement_id": settlement_data["settlement_id"],
             "negotiation_id": settlement_data["negotiation_id"],
-            "payer_agent_id": settlement_data["payer_agent_id"],
-            "payee_agent_id": settlement_data["payee_agent_id"],
+            "payer_agent_id": payer,
+            "payee_agent_id": payee,
             "event_chain": event_chain,
             "final_state": _build_final_state(settlement_data),
             "amounts_settled": _build_amounts_settled(settlement_data),
@@ -98,48 +108,93 @@ class ExecutionReceipt:
 
 
 def _resolve_receipt_type(state: str) -> str:
-    if state == "RELEASED":
-        return "FULL_RELEASE"
-    if state == "PARTIAL_RELEASED":
-        return "PARTIAL_RELEASE"
-    if state == "ROLLED_BACK":
-        return "FULL_ROLLBACK"
-    if state == "DISPUTED":
-        return "DISPUTE_RESOLVED"
-    return "SPLIT_CASCADE"
+    mapping = {
+        "SETTLED": "FULL_RELEASE",
+        "RELEASED": "FULL_RELEASE",
+        "PARTIAL": "PARTIAL_RELEASE",
+        "PARTIAL_RELEASED": "PARTIAL_RELEASE",
+        "REFUNDED": "FULL_ROLLBACK",
+        "ROLLED_BACK": "FULL_ROLLBACK",
+        "DISPUTED": "DISPUTE_RESOLVED",
+    }
+    return mapping.get(state, "FULL_RELEASE")
+
+
+def _map_state_to_receipt(state: str) -> str:
+    """Map v0.2 settlement states to v0.1 receipt final_state enum."""
+    mapping = {
+        "SETTLED": "RELEASED",
+        "REFUNDED": "ROLLED_BACK",
+        "PARTIAL": "PARTIAL_RELEASED",
+        "DISPUTED": "DISPUTE_RESOLVED",
+        # v0.1 states pass through
+        "RELEASED": "RELEASED",
+        "PARTIAL_RELEASED": "PARTIAL_RELEASED",
+        "ROLLED_BACK": "ROLLED_BACK",
+    }
+    return mapping.get(state, state)
 
 
 def _build_final_state(settlement_data: dict[str, Any]) -> dict[str, Any]:
     state = settlement_data["state"]
-    final_state = {
-        "state": "DISPUTE_RESOLVED" if state == "DISPUTED" else state,
+    receipt_state = _map_state_to_receipt(state)
+    verification = settlement_data.get("verification_result", {})
+
+    condition_met = verification.get("all_required_met", verification.get("condition_met", False))
+
+    return {
+        "state": receipt_state,
         "resolved_at": settlement_data.get("settled_at", utc_now_iso()),
-        "resolution_method": "automatic_condition_met",
-        "condition_met": settlement_data.get("verification_result", {}).get("condition_met", False),
+        "resolution_method": "automatic_condition_met" if condition_met else "automatic_condition_failed",
+        "condition_met": condition_met,
         "completion_percentage": settlement_data.get("execution_result", {}).get("completion_percentage", 100),
     }
 
-    if state in {"ROLLED_BACK", "DISPUTED"}:
-        final_state["resolution_method"] = "automatic_condition_failed"
-    if settlement_data.get("verification_result", {}).get("verification_method") == "human_verified":
-        final_state["resolution_method"] = "human_approved" if final_state["condition_met"] else "human_rejected"
-
-    return final_state
-
 
 def _build_amounts_settled(settlement_data: dict[str, Any]) -> dict[str, Any]:
-    locked = settlement_data["locked_amount"]
-    if settlement_data["state"] == "ROLLED_BACK":
-        released = 0.0
+    # Support both v0.1 and v0.2 field names
+    locked = settlement_data.get("total_amount_minor_units") or settlement_data.get("locked_amount", 0)
+    currency = settlement_data.get("currency") or settlement_data.get("settlement_unit", "USD")
+
+    state = settlement_data["state"]
+    if state in {"REFUNDED", "ROLLED_BACK"}:
+        released = 0
     else:
-        released = sum(item["amount"] for item in settlement_data.get("split_distributions", []))
+        distributions = settlement_data.get("split_distributions", [])
+        released = sum(
+            item.get("amount_minor_units", item.get("amount", 0))
+            for item in distributions
+        )
+
+    # Normalize distributions to v0.1 receipt schema format
+    # Map v0.2 roles to v0.1 receipt role enum
+    role_map = {
+        "primary_executor": "subagent",
+        "sub_executor": "subagent",
+        "data_provider": "subagent",
+        "tool_provider": "tool",
+        "orchestrator": "orchestrator",
+        "verifier": "custom",
+        "platform": "platform",
+    }
+
+    normalized_distributions = []
+    for d in settlement_data.get("split_distributions", []):
+        raw_role = d.get("role", "custom")
+        normalized_distributions.append({
+            "recipient_agent_id": d.get("recipient_agent_id") or d.get("agent_id", ""),
+            "amount": d.get("amount") if "amount" in d else d.get("amount_minor_units", 0),
+            "role": role_map.get(raw_role, raw_role),
+            "distribution_timestamp": d.get("distribution_timestamp"),
+            "distribution_signature": d.get("distribution_signature"),
+        })
 
     return {
         "total_locked": locked,
         "total_released": released,
-        "total_rolled_back": max(0.0, locked - released),
-        "settlement_unit": settlement_data["settlement_unit"],
-        "split_distributions": settlement_data.get("split_distributions", []),
+        "total_rolled_back": max(0, locked - released),
+        "settlement_unit": currency,
+        "split_distributions": normalized_distributions,
     }
 
 
